@@ -1,0 +1,1749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CONFLICT MONITOR</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Barlow+Condensed:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080b0f;--bg2:#0d1117;--bg3:#111820;--bg4:#161d26;
+  --border:#1e2d3d;--border2:#243447;
+  --amber:#f0a500;--amber-dim:#7a5200;
+  --green:#3ce084;--blue:#3ca8e0;
+  --text:#c8d8e8;--text-dim:#4a6070;--text-mid:#7a9ab0;
+  --mono:'IBM Plex Mono',monospace;
+  --cond:'Barlow Condensed',sans-serif;
+  --panel:280px;
+  --topbar:46px;
+  --scanline:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.06) 2px,rgba(0,0,0,.06) 4px);
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--mono)}
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;background:var(--scanline);opacity:.35}
+
+/* ── Shell ── */
+#app{display:grid;grid-template-rows:var(--topbar) 1fr;height:100vh}
+#body{display:grid;grid-template-columns:var(--panel) 1fr;overflow:hidden}
+
+/* Right column: map on top, ISW strip on bottom */
+#right-col{display:flex;flex-direction:column;overflow:hidden;min-width:0}
+
+/* ── Topbar ── */
+#topbar{
+  display:flex;align-items:center;
+  background:var(--bg2);border-bottom:1px solid var(--border);
+  position:relative;overflow:visible;
+}
+#topbar::after{
+  content:'';position:absolute;left:0;right:0;bottom:-1px;height:1px;
+  background:linear-gradient(90deg,transparent,var(--amber) 20%,var(--amber) 80%,transparent);
+  opacity:.35;pointer-events:none;
+}
+.brand{
+  font-family:var(--cond);font-weight:900;font-size:18px;letter-spacing:.2em;
+  color:var(--amber);text-transform:uppercase;white-space:nowrap;
+  padding:0 16px;border-right:1px solid var(--border);height:100%;
+  display:flex;align-items:center;flex-shrink:0;
+}
+.brand em{color:var(--text-dim);font-style:normal;font-weight:300}
+
+/* ── Topbar filter zone ── */
+#topbar-filters{
+  display:flex;align-items:center;gap:6px;
+  padding:0 12px;flex:1;overflow:visible;
+}
+
+/* ── Dropdown component ── */
+.dd-wrap{position:relative;flex-shrink:0;overflow:visible}
+.dd-btn{
+  font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+  background:var(--bg3);border:1px solid var(--border2);color:var(--text-mid);
+  padding:4px 10px 4px 8px;cursor:pointer;display:flex;align-items:center;gap:5px;
+  transition:all .12s;white-space:nowrap;
+}
+.dd-btn:hover,.dd-btn.open{border-color:var(--amber);color:var(--amber)}
+.dd-btn .dd-arrow{font-size:7px;transition:transform .15s}
+.dd-btn.open .dd-arrow{transform:rotate(180deg)}
+.dd-badge{
+  background:var(--amber);color:var(--bg);font-size:8px;
+  padding:1px 4px;border-radius:1px;font-weight:bold;
+}
+.dd-menu{
+  position:fixed;top:var(--topbar);
+  background:var(--bg2);border:1px solid var(--border2);
+  z-index:1000;min-width:220px;display:none;
+  box-shadow:0 12px 32px rgba(0,0,0,.85);
+  max-height:60vh;overflow-y:auto;
+}
+.dd-menu.open{display:block}
+#dd-overlay{
+  position:fixed;inset:0;z-index:999;display:none;
+}
+#dd-overlay.open{display:block}
+.dd-item{
+  display:flex;align-items:center;gap:8px;
+  padding:7px 10px;cursor:pointer;font-size:11px;color:var(--text-mid);
+  border-bottom:1px solid var(--border);transition:background .08s;
+}
+.dd-item:last-child{border-bottom:none}
+.dd-item:hover{background:var(--bg3);color:var(--text)}
+.dd-item.on{color:var(--text)}
+.dd-check{width:12px;height:12px;border:1px solid var(--border2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8px}
+.dd-item.on .dd-check{background:var(--amber);border-color:var(--amber);color:var(--bg)}
+.dd-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dd-count{margin-left:auto;font-size:9px;color:var(--text-dim)}
+.dd-divider{height:1px;background:var(--border);margin:2px 0}
+.dd-action{padding:6px 10px;font-size:9px;color:var(--text-dim);cursor:pointer;display:flex;gap:8px}
+.dd-action span:hover{color:var(--amber)}
+/* Severity pills stay inline */
+.sev-pills{display:flex;gap:3px;align-items:center}
+.sev-pill{
+  font-family:var(--mono);font-size:8px;padding:3px 7px;cursor:pointer;
+  border:1px solid var(--border2);color:var(--text-dim);background:transparent;
+  letter-spacing:.08em;text-transform:uppercase;transition:all .1s;
+}
+.sev-pill:hover{border-color:var(--text-mid);color:var(--text)}
+.sev-pill.on-critical{background:#f85149;border-color:#f85149;color:#fff}
+.sev-pill.on-high{background:#e3841a;border-color:#e3841a;color:#fff}
+.sev-pill.on-medium{background:#d29922;border-color:#d29922;color:#000}
+.sev-pill.on-low{background:#2a3a2a;border-color:var(--green);color:var(--green)}
+
+/* Topbar right */
+#topbar-right{
+  display:flex;align-items:center;gap:10px;
+  padding:0 14px;border-left:1px solid var(--border);flex-shrink:0;
+}
+#clock{font-size:9px;color:var(--text-dim);letter-spacing:.08em;white-space:nowrap}
+#refresh-btn{
+  font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+  background:transparent;border:1px solid var(--amber-dim);color:var(--amber);
+  padding:5px 12px;cursor:pointer;transition:all .15s;
+}
+#refresh-btn:hover{background:var(--amber);color:var(--bg)}
+#refresh-btn.loading{opacity:.4;pointer-events:none}
+/* Mil-site click popup */
+.mil-popup .leaflet-popup-content-wrapper{
+  background:#0d1117;border:1px solid #1e2d3d;border-radius:0;
+  box-shadow:0 4px 16px #00000080;padding:0;
+}
+.mil-popup .leaflet-popup-tip-container{display:none}
+.mil-popup .leaflet-popup-content{margin:0;padding:0}
+.mil-pop{padding:9px 12px;min-width:160px}
+.mil-pop-name{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;color:#c8d8e8;margin-bottom:3px}
+.mil-pop-cat{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.12em;margin-bottom:5px}
+.mil-pop-note{font-family:'IBM Plex Mono',monospace;font-size:9px;color:#4a6070;line-height:1.5}
+
+/* ── Left panel: news stream ── */
+#news-panel{
+  display:flex;flex-direction:column;
+  background:var(--bg2);border-right:1px solid var(--border);
+  overflow:hidden;
+}
+#news-header{
+  padding:8px 12px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:8px;flex-shrink:0;
+}
+#news-title{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-dim)}
+#news-count{font-family:var(--cond);font-size:18px;font-weight:700;color:var(--amber);line-height:1;margin-left:auto}
+#news-list{flex:1;overflow-y:auto}
+#news-list::-webkit-scrollbar{width:3px}
+#news-list::-webkit-scrollbar-thumb{background:var(--border2)}
+
+/* Day picker */
+#day-picker{
+  display:flex;gap:0;flex-shrink:0;
+  border-bottom:1px solid var(--border);
+  overflow-x:auto;scrollbar-width:none;
+}
+#day-picker:empty{display:none}
+#day-picker::-webkit-scrollbar{display:none}
+.day-btn{
+  font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;
+  padding:5px 10px;cursor:pointer;border:none;border-right:1px solid var(--border);
+  background:var(--bg2);color:var(--text-dim);white-space:nowrap;flex-shrink:0;
+  transition:all .1s;
+}
+.day-btn:hover{color:var(--text);background:var(--bg3)}
+.day-btn.active{background:var(--bg3);color:var(--amber);border-bottom:2px solid var(--amber)}
+
+/* Article card */
+.art-card{
+  padding:9px 12px;border-bottom:1px solid var(--border);
+  cursor:pointer;transition:background .08s;position:relative;
+}
+.art-card:hover{background:var(--bg3)}
+.art-card.selected{background:var(--bg3);border-left:2px solid var(--amber)}
+.art-sev-bar{position:absolute;left:0;top:0;bottom:0;width:2px}
+.art-meta{display:flex;align-items:center;gap:5px;margin-bottom:4px;flex-wrap:wrap}
+.art-source{font-size:9px;letter-spacing:.05em;text-transform:uppercase;padding:1px 4px;border:1px solid}
+.art-source.c5{border-color:var(--green);color:var(--green)}
+.art-source.c4{border-color:#7aaa7a;color:#7aaa7a}
+.art-source.c3{border-color:var(--amber-dim);color:var(--amber)}
+.art-type{font-size:9px;padding:1px 4px;text-transform:uppercase;letter-spacing:.05em}
+.art-time{font-size:9px;color:var(--text-dim);margin-left:auto}
+.art-title{
+  font-family:var(--cond);font-weight:600;font-size:14px;line-height:1.3;color:var(--text);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.art-card:hover .art-title{color:#fff}
+.art-loc{font-size:9px;color:var(--text-dim);margin-top:3px}
+
+/* ── Map zone ── */
+#map-wrap{position:relative;overflow:hidden;flex:1;min-height:0}
+#map{position:absolute;inset:0}
+
+/* ── Popup ── */
+#popup{
+  position:absolute;width:400px;
+  background:var(--bg2);border:1px solid var(--border2);
+  z-index:500;display:none;flex-direction:column;
+  box-shadow:0 16px 48px rgba(0,0,0,.85);
+  pointer-events:auto;
+}
+#popup.visible{display:flex}
+#popup-sev{height:4px;flex-shrink:0}
+#popup-body{padding:14px 14px 12px}
+#popup-close{
+  position:absolute;top:8px;right:8px;background:none;border:none;
+  color:var(--text-dim);cursor:pointer;font-size:14px;font-family:var(--mono);
+  z-index:1;transition:color .1s;line-height:1;padding:2px 5px;
+}
+#popup-close:hover{color:var(--text)}
+/* Nav for grouped events */
+#popup-nav{
+  display:none;align-items:center;justify-content:space-between;
+  padding:6px 14px;border-top:1px solid var(--border);
+  background:var(--bg3);flex-shrink:0;
+}
+#popup-nav.visible{display:flex}
+.nav-btn{
+  font-family:var(--mono);font-size:9px;background:none;border:1px solid var(--border2);
+  color:var(--text-mid);padding:4px 12px;cursor:pointer;letter-spacing:.08em;
+  transition:all .1s;
+}
+.nav-btn:hover:not(:disabled){border-color:var(--amber);color:var(--amber)}
+.nav-btn:disabled{opacity:.25;cursor:default}
+#popup-nav-label{font-size:9px;color:var(--text-dim);letter-spacing:.06em}
+#popup-meta{display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+#popup-source-tag{font-size:9px;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid}
+#popup-source-tag.c5{border-color:var(--green);color:var(--green)}
+#popup-source-tag.c4{border-color:#7aaa7a;color:#7aaa7a}
+#popup-source-tag.c3{border-color:var(--amber-dim);color:var(--amber)}
+#popup-type-tag{font-size:9px;padding:2px 6px;text-transform:uppercase;letter-spacing:.06em}
+#popup-time-tag{font-size:9px;color:var(--text-dim);margin-left:auto}
+#popup-title{
+  font-family:var(--cond);font-weight:700;font-size:19px;line-height:1.35;
+  color:#fff;margin-bottom:8px;padding-right:20px;
+}
+#popup-summary{
+  font-size:11px;color:var(--text-mid);line-height:1.6;margin-bottom:10px;
+  display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;
+}
+#popup-loc{font-size:10px;color:var(--text-dim);margin-bottom:9px;display:flex;align-items:center;gap:4px}
+#popup-cats{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:10px}
+.pcap{font-size:8px;padding:2px 5px;background:var(--bg3);border:1px solid var(--border);color:var(--text-dim)}
+#popup-link{
+  display:block;width:100%;font-family:var(--mono);font-size:9px;letter-spacing:.1em;
+  text-transform:uppercase;background:transparent;border:1px solid var(--amber-dim);
+  color:var(--amber);padding:8px;cursor:pointer;transition:all .15s;text-align:center;text-decoration:none;
+}
+#popup-link:hover{background:var(--amber);color:var(--bg)}
+
+/* ── Type colors ── */
+.t-airstrike{color:#ff6b6b}
+.t-missile{color:#ff9f43}
+.t-drone{color:#cd84ff}
+.t-nuclear{color:#ff4757}
+.t-ground{color:#26de81}
+.t-naval{color:#45aaf2}
+.t-violence{color:#fc5c65}
+.t-conflict{color:#fd9644}
+.t-protest{color:#f7b731}
+.t-riot{color:#e84393}
+.t-arrest{color:#4bcffa}
+.t-strategic{color:#0be881}
+.t-logistics{color:#808e9b}
+.bg-airstrike{background:#ff6b6b}
+.bg-missile{background:#ff9f43}
+.bg-drone{background:#cd84ff}
+.bg-nuclear{background:#ff4757}
+.bg-ground{background:#26de81}
+.bg-naval{background:#45aaf2}
+.bg-violence{background:#fc5c65}
+.bg-conflict{background:#fd9644}
+.bg-protest{background:#f7b731}
+.bg-riot{background:#e84393}
+.bg-arrest{background:#4bcffa}
+.bg-strategic{background:#0be881}
+.bg-logistics{background:#808e9b}
+.sev-critical{background:#ff4757}.sev-high{background:#ff9f43}
+.sev-medium{background:#f7b731;color:#000!important}.sev-low{background:#2a3a2a}
+
+/* ── Toast ── */
+#toast{
+  position:absolute;bottom:16px;left:50%;transform:translateX(-50%);
+  background:var(--bg2);border:1px solid var(--border2);
+  font-size:9px;letter-spacing:.08em;color:var(--text-mid);
+  padding:5px 14px;z-index:600;pointer-events:none;
+  opacity:0;transition:opacity .3s;white-space:nowrap;
+}
+#toast.show{opacity:1}
+
+/* ── ISW bottom strip ── */
+#isw-panel{
+  flex-shrink:0;border-top:1px solid var(--border);
+  background:var(--bg);
+  display:flex;flex-direction:column;
+  height:216px;
+  transition:height .22s ease;overflow:hidden;
+}
+#isw-panel.collapsed{height:28px}
+#isw-header{
+  display:flex;align-items:center;gap:8px;
+  padding:5px 12px;border-bottom:1px solid var(--border);flex-shrink:0;
+  cursor:pointer;user-select:none;height:28px;
+}
+#isw-header:hover{background:var(--bg3)}
+.isw-badge{
+  font-size:7px;letter-spacing:.1em;font-family:var(--mono);
+  padding:1px 5px;border:1px solid #0bc8c8;color:#0bc8c8;
+  text-transform:uppercase;flex-shrink:0;
+}
+#isw-title{font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:#0bc8c8;flex:1}
+#isw-count{font-family:var(--cond);font-size:15px;font-weight:700;color:#0bc8c8;line-height:1}
+#isw-edition-label{font-size:8px;color:var(--text-dim);letter-spacing:.08em;text-transform:uppercase}
+#isw-chevron{font-size:9px;color:var(--text-dim);transition:transform .22s}
+#isw-panel.collapsed #isw-chevron{transform:rotate(180deg)}
+.isw-map-toggle{
+  font-family:var(--mono);font-size:8px;letter-spacing:.08em;
+  background:transparent;border:1px solid #0bc8c830;color:#0bc8c860;
+  padding:2px 7px;cursor:pointer;transition:all .15s;flex-shrink:0;
+}
+.isw-map-toggle.active{border-color:#0bc8c8;color:#0bc8c8;background:#0bc8c815}
+
+/* Horizontal scrolling card list */
+#isw-list{
+  display:flex;flex-direction:row;
+  overflow-x:auto;overflow-y:hidden;
+  flex:1;gap:0;align-items:stretch;
+}
+#isw-list::-webkit-scrollbar{height:3px}
+#isw-list::-webkit-scrollbar-thumb{background:#0bc8c830}
+
+/* ISW horizontal card */
+.isw-card{
+  flex-shrink:0;width:260px;
+  padding:9px 12px;border-right:1px solid var(--border);
+  cursor:pointer;transition:background .08s;position:relative;
+  display:flex;flex-direction:column;justify-content:space-between;
+}
+.isw-card:hover{background:var(--bg3)}
+.isw-card.selected{background:var(--bg3);border-top:2px solid #0bc8c8}
+.isw-card-meta{display:flex;align-items:center;gap:5px;margin-bottom:5px;flex-wrap:wrap}
+.isw-section-tag{
+  font-size:7px;letter-spacing:.06em;text-transform:uppercase;
+  padding:1px 4px;border:1px solid;flex-shrink:0;
+}
+.isw-section-tag.topline{border-color:#0bc8c840;color:#0bc8c8;background:#0bc8c808}
+.isw-section-tag.takeaway{border-color:#f7b73140;color:#f7b731;background:#f7b73108}
+.isw-edition{font-size:7px;color:var(--text-dim);letter-spacing:.05em;text-transform:uppercase}
+.isw-time{font-size:8px;color:var(--text-dim);margin-left:auto}
+.isw-card-title{
+  font-family:var(--cond);font-weight:600;font-size:13px;line-height:1.35;
+  color:#a8e8e8;flex:1;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+}
+.isw-card:hover .isw-card-title{color:#fff}
+.isw-card-loc{font-size:8px;color:var(--text-dim);margin-top:5px;flex-shrink:0}
+.isw-empty{
+  padding:0 20px;font-size:9px;color:var(--text-dim);
+  display:flex;align-items:center;white-space:nowrap;
+}
+/* ISW day picker bar */
+#isw-day-picker{
+  display:flex;gap:0;flex-shrink:0;
+  border-bottom:1px solid var(--border);
+  overflow-x:auto;scrollbar-width:none;
+}
+#isw-day-picker:empty{display:none}
+#isw-day-picker::-webkit-scrollbar{display:none}
+.isw-day-btn{
+  font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;
+  padding:4px 10px;cursor:pointer;border:none;border-right:1px solid var(--border);
+  background:var(--bg);color:var(--text-dim);white-space:nowrap;flex-shrink:0;
+  transition:all .1s;
+}
+.isw-day-btn:hover{color:#0bc8c8;background:var(--bg3)}
+.isw-day-btn.active{background:var(--bg3);color:#0bc8c8;border-bottom:2px solid #0bc8c8}
+
+/* Scroll arrow buttons inside header */
+.isw-scroll-btn{
+  font-family:var(--mono);font-size:11px;background:none;
+  border:1px solid var(--border2);color:var(--text-dim);
+  padding:1px 7px;cursor:pointer;line-height:1;transition:all .1s;flex-shrink:0;
+}
+.isw-scroll-btn:hover:not(:disabled){border-color:#0bc8c8;color:#0bc8c8}
+.isw-scroll-btn:disabled{opacity:.2;cursor:default}
+/* ISW popup accent */
+.isw-popup-bar{background:#0bc8c8!important}
+/* Leaflet */
+/* Darken the tile layers while keeping markers/popups at full brightness */
+#map .leaflet-tile-pane{
+  filter: brightness(0.68) contrast(1.08) saturate(0.85);
+}
+/* Terrain colour layer: screen blend lifts earth tones through dark base */
+.terrain-colour-layer { mix-blend-mode: screen; }
+.leaflet-tooltip{background:transparent!important;border:none!important;box-shadow:none!important;padding:0!important}
+</style>
+</head>
+<body>
+<div id="dd-overlay" onclick="closeAllDD()"></div>
+<div id="app">
+
+  <!-- Topbar -->
+  <div id="topbar">
+    <div class="brand">CONFLICT<em> //</em>MONITOR</div>
+
+    <div id="topbar-filters">
+      <!-- Source dropdown -->
+      <div class="dd-wrap" id="dd-source-wrap">
+        <button class="dd-btn" id="dd-source-btn" onclick="toggleDD('source')">
+          <span>Source</span>
+          <span class="dd-badge" id="dd-source-badge">─</span>
+          <span class="dd-arrow">▾</span>
+        </button>
+        <div class="dd-menu" id="dd-source-menu"></div>
+      </div>
+
+      <!-- Type dropdown -->
+      <div class="dd-wrap" id="dd-type-wrap">
+        <button class="dd-btn" id="dd-type-btn" onclick="toggleDD('type')">
+          <span>Type</span>
+          <span class="dd-badge" id="dd-type-badge">─</span>
+          <span class="dd-arrow">▾</span>
+        </button>
+        <div class="dd-menu" id="dd-type-menu"></div>
+      </div>
+
+      <!-- Map dropdown — tile overlays -->
+      <div class="dd-wrap" id="dd-map-wrap">
+        <button class="dd-btn" id="dd-map-btn" onclick="toggleDD('map')">
+          <span>Map</span>
+          <span class="dd-arrow">▾</span>
+        </button>
+        <div class="dd-menu" id="dd-map-menu"></div>
+      </div>
+
+      <!-- Military dropdown — ISW events + Mil sites -->
+      <div class="dd-wrap" id="dd-mil-wrap">
+        <button class="dd-btn" id="dd-mil-btn" onclick="toggleDD('mil')">
+          <span>Military</span>
+          <span class="dd-arrow">▾</span>
+        </button>
+        <div class="dd-menu" id="dd-mil-menu"></div>
+      </div>
+
+      <!-- Severity inline pills -->
+      <div style="display:flex;align-items:center;gap:6px;padding:0 4px;border-left:1px solid var(--border);margin-left:2px;padding-left:10px">
+        <span style="font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim)">Sev</span>
+        <div class="sev-pills">
+          <button class="sev-pill on-critical" data-sev="critical" onclick="toggleSev(this)">Crit</button>
+          <button class="sev-pill on-high"     data-sev="high"     onclick="toggleSev(this)">High</button>
+          <button class="sev-pill on-medium"   data-sev="medium"   onclick="toggleSev(this)">Med</button>
+          <button class="sev-pill"         data-sev="low"      onclick="toggleSev(this)">Low</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="topbar-right">
+      <div id="clock">REFRESHED ──:──</div>
+      <button id="refresh-btn" onclick="fetchData()">↻ Refresh</button>
+    </div>
+  </div>
+
+  <!-- Body: left panel + right column -->
+  <div id="body">
+
+    <!-- Left: RSS news stream only -->
+    <div id="news-panel">
+      <div id="news-header">
+        <span id="news-title">NEWS STREAM</span>
+        <span id="news-count">─</span>
+      </div>
+      <div id="day-picker"></div>
+      <div id="news-list">
+        <div style="padding:24px 14px;font-size:10px;color:var(--text-dim);text-align:center;line-height:2">
+          <div>Run: python3 rss-server.py</div>
+          <div>Then click ↻ REFRESH</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: map on top, ISW strip on bottom -->
+    <div id="right-col">
+
+      <!-- Map -->
+      <div id="map-wrap">
+        <div id="map"></div>
+
+        <!-- Popup -->
+        <div id="popup">
+          <div id="popup-sev"></div>
+          <div id="popup-body">
+            <button id="popup-close" onclick="closePopup()">✕</button>
+            <div id="popup-meta">
+              <span id="popup-source-tag"></span>
+              <span id="popup-type-tag"></span>
+              <span id="popup-time-tag"></span>
+            </div>
+            <div id="popup-title"></div>
+            <div id="popup-summary"></div>
+            <div id="popup-loc"><span style="color:var(--amber)">⌖</span><span id="popup-loc-txt"></span></div>
+            <div id="popup-cats"></div>
+            <a id="popup-link" target="_blank" rel="noopener">↗ OPEN ARTICLE</a>
+          </div>
+          <div id="popup-nav">
+            <button class="nav-btn" id="nav-prev" onclick="navGroup(-1)">◀ PREV</button>
+            <span id="popup-nav-label"></span>
+            <button class="nav-btn" id="nav-next" onclick="navGroup(+1)">NEXT ▶</button>
+          </div>
+        </div>
+
+        <div id="toast"></div>
+      </div>
+
+      <!-- ISW intel assessments — horizontal bottom strip -->
+      <div id="isw-panel">
+        <div id="isw-header" onclick="toggleISWPanel()">
+          <span class="isw-badge">ISW</span>
+          <span onclick="event.stopPropagation()" style="display:flex;align-items:center">
+            <button class="isw-map-toggle" id="isw-map-toggle" onclick="toggleISWMarkers()" title="Plot ISW events on map">⬡ ISW</button>
+          </span>
+          <span id="isw-title">INTEL ASSESSMENTS</span>
+          <span id="isw-count">─</span>
+          <span id="isw-chevron" style="margin-left:6px">▾</span>
+          <span onclick="event.stopPropagation()" style="display:flex;gap:4px;margin-left:10px">
+            <button class="isw-scroll-btn" id="isw-scroll-left"  onclick="scrollISW(-1)" disabled>◀</button>
+            <button class="isw-scroll-btn" id="isw-scroll-right" onclick="scrollISW(+1)">▶</button>
+          </span>
+        </div>
+        <div id="isw-day-picker"></div>
+        <div id="isw-list">
+          <div class="isw-empty">Click ↻ REFRESH to load ISW assessments</div>
+        </div>
+      </div>
+
+    </div><!-- /right-col -->
+
+  </div><!-- /body -->
+</div>
+
+<script>
+const SERVER = 'http://localhost:8766';
+const TYPE_COLORS = {
+  // Kinetic / weapons
+  airstrike: '#ff6b6b',   // bright red     — air strike
+  missile:   '#ff9f43',   // orange         — ballistic / rocket
+  drone:     '#cd84ff',   // purple         — UAV
+  nuclear:   '#ff4757',   // crimson        — WMD / nuclear
+  ground:    '#26de81',   // green          — ground operation
+  naval:     '#45aaf2',   // sky blue       — maritime
+  // Human impact
+  violence:  '#fc5c65',   // rose-red       — casualties / attack
+  // General military
+  conflict:  '#fd9644',   // amber-orange   — military activity / news
+  // Civil
+  protest:   '#f7b731',   // yellow         — protest / demonstration
+  riot:      '#e84393',   // hot pink       — civil unrest / riot
+  arrest:    '#4bcffa',   // cyan           — detention / arrest
+  // Diplomatic
+  strategic: '#0be881',   // bright teal    — ceasefire / talks
+  // Logistics
+  logistics: '#808e9b',   // slate          — blockade / sanctions
+};
+const CRED = {
+  'Al Jazeera':4, 'BBC Middle East':5,
+  'Times of Israel':4, 'Haaretz':4, 'The National':3,
+  'Reuters': 5, 'AP News': 5,
+  'ISW': 5,
+};
+const SEV_ORD = ['critical','high','medium','low'];
+
+// ISW state
+let allISW       = [];
+let iswCollapsed = false;
+let selectedISWDay = null;  // null = latest day
+
+// State
+let allEvents  = [];
+let selSources = new Set();
+let selTypes   = new Set();
+let selSevs    = new Set(['critical','high','medium']);
+let selectedDay = null; // null = latest day
+let map, markerGroup;
+
+// Group state for popup nav
+let popupGroup = [];
+let popupIdx   = 0;
+
+// ── Last-refresh stamp ───────────────────────────────────────────
+function setLastRefresh(){
+  const n = new Date();
+  const hhmm = String(n.getUTCHours()).padStart(2,'0')+':'+String(n.getUTCMinutes()).padStart(2,'0');
+  document.getElementById('clock').textContent = 'REFRESHED '+hhmm+' UTC';
+}
+
+// ── Map ──────────────────────────────────────────────────────────
+function initMap(){
+  map = L.map('map',{zoomControl:false,attributionControl:false});
+
+  // Mil sites pane — above tiles, below event markers
+  map.createPane('milPane');
+  map.getPane('milPane').style.zIndex = 410;
+
+  // Event markers pane — always on top of mil sites
+  map.createPane('markersPane');
+  map.getPane('markersPane').style.zIndex = 420;
+
+  // 1. Dark base with borders + labels baked in — single CartoDB tile so
+  //    names and borders render at identical brightness/colour in one pass
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    {maxZoom:19, subdomains:'abcd'}).addTo(map);
+
+  // 2. Terrain colour (off by default)
+  mapOverlays.terrain.layer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Physical_Map/MapServer/tile/{z}/{y}/{x}',
+    {maxZoom:8, opacity:0.22, className:'terrain-colour-layer'});
+  // not added — off by default
+
+  // 3. Hillshade Dark (on by default)
+  mapOverlays.hillshade.layer = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade_Dark/MapServer/tile/{z}/{y}/{x}',
+    {maxZoom:16, opacity:0.35}).addTo(map);
+
+  // 4. Roads (off by default)
+  mapOverlays.roads.layer = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
+    {maxZoom:19, opacity:0.15});
+  // not added — off by default
+
+  // 5. Labels overlay — kept in mapOverlays for the Map dropdown toggle,
+  //    but since dark_all already includes labels this adds a second pass
+  //    for users who want extra label contrast; off by default
+  mapOverlays.labels.layer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png',
+    {maxZoom:19, subdomains:'abcd', opacity:0.5});
+  // not added — dark_all already has labels baked in
+
+  L.control.zoom({position:'bottomright'}).addTo(map);
+  markerGroup = L.layerGroup([], {pane:'markersPane'}).addTo(map);
+  map.setView([29,42],4);
+  map.on('click',()=>closePopup());
+
+  // Mil sites — off by default, build layer ready for toggle
+  buildMilLayer();
+  mapOverlays.mil.layer = milLayer;
+  // not added to map — off by default
+
+  // Auto-load on open
+  fetchData();
+}
+
+// ── ISW ──────────────────────────────────────────────────────────
+function toggleISWPanel(){
+  iswCollapsed = !iswCollapsed;
+  document.getElementById('isw-panel').classList.toggle('collapsed', iswCollapsed);
+  setTimeout(()=>{ if(map) map.invalidateSize(); }, 250);
+}
+
+function scrollISW(dir){
+  const list = document.getElementById('isw-list');
+  list.scrollBy({left: dir * 780, behavior: 'smooth'});
+}
+
+function updateISWScrollBtns(){
+  const list = document.getElementById('isw-list');
+  const btnL = document.getElementById('isw-scroll-left');
+  const btnR = document.getElementById('isw-scroll-right');
+  if(!list||!btnL||!btnR) return;
+  btnL.disabled = list.scrollLeft <= 0;
+  btnR.disabled = list.scrollLeft + list.clientWidth >= list.scrollWidth - 2;
+}
+
+// ISW day helpers — reuse RSS eventDateKey
+function getISWAvailableDays(){
+  const days = [...new Set(allISW.map(e=>eventDateKey(e)).filter(Boolean))];
+  return days.sort((a,b)=>b.localeCompare(a));
+}
+
+function getISWFiltered(){
+  const days = getISWAvailableDays();
+  const activeDay = (selectedISWDay && days.includes(selectedISWDay))
+    ? selectedISWDay : (days[0]||null);
+  if(!activeDay) return allISW;
+  return allISW.filter(e=>eventDateKey(e)===activeDay);
+}
+
+function buildISWDayPicker(){
+  const days   = getISWAvailableDays();
+  const picker = document.getElementById('isw-day-picker');
+  if(days.length <= 1){ picker.innerHTML=''; return; }
+  if(!selectedISWDay || !days.includes(selectedISWDay)) selectedISWDay = days[0];
+  picker.innerHTML = days.map(d=>
+    `<button class="isw-day-btn${d===selectedISWDay?' active':''}"
+             onclick="selectISWDay('${d}')">${dayLabel(d)}</button>`
+  ).join('');
+}
+
+function selectISWDay(d){
+  selectedISWDay = d;
+  buildISWDayPicker();
+  buildISWPanel();
+  renderMap(getFiltered());
+}
+
+async function fetchISW(){
+  try{
+    const r = await fetch(`${SERVER}/isw.json`,{cache:'no-store'});
+    if(!r.ok) return;
+    const data = await r.json();
+    if(!Array.isArray(data)) return;
+    allISW = data;
+    buildISWDayPicker();
+    buildISWPanel();
+    if(map) map.invalidateSize();
+    renderMap(getFiltered());
+  }catch(e){
+    console.warn('ISW fetch:', e.message);
+  }
+}
+
+function buildISWPanel(){
+  const list    = document.getElementById('isw-list');
+  const visible = getISWFiltered();
+  // Count: show filtered / total
+  const days  = getISWAvailableDays();
+  const total = allISW.length;
+  document.getElementById('isw-count').textContent =
+    (days.length > 1 && visible.length !== total)
+      ? `${visible.length}/${total}`
+      : (total || '─');
+
+  if(!visible.length){
+    list.innerHTML=`<div class="isw-empty">No ISW assessments for this date</div>`;
+    updateISWScrollBtns();
+    return;
+  }
+  list.innerHTML = visible.map(e=>{
+    const secCls = e.isw_section==='takeaway' ? 'takeaway' : 'topline';
+    const secLbl = e.isw_section==='takeaway' ? 'KEY TKW' : 'TOPLINE';
+    const edLbl  = (e.isw_edition||'').toUpperCase();
+    return `<div class="isw-card" id="isw-card-${e.id}" onclick="iswCardClick('${e.id}')">
+      <div class="isw-card-meta">
+        <span class="isw-section-tag ${secCls}">${secLbl}</span>
+        <span class="isw-edition">${edLbl}</span>
+        <span class="isw-time">${fmtTime(e.pub)}</span>
+      </div>
+      <div class="isw-card-title">${e.title}</div>
+      <div class="isw-card-loc">⌖ ${e.location||'──'}</div>
+    </div>`;
+  }).join('');
+
+  // Scroll back to start on day change
+  list.scrollLeft = 0;
+
+  // Register in evMap
+  visible.forEach(e=>{ if(window.__evMap) window.__evMap[e.id]=e; });
+
+  // Wire up scroll listener for button states
+  list.onscroll = updateISWScrollBtns;
+  updateISWScrollBtns();
+}
+
+function iswCardClick(id){
+  const e = allISW.find(x=>x.id===id);
+  if(!e) return;
+  const visible = getISWFiltered();
+  const group = visible.filter(x=>x.lat&&x.lng&&e.lat&&e.lng&&
+    Math.abs(x.lat-e.lat)<0.15&&Math.abs(x.lng-e.lng)<0.15);
+  const idx = group.findIndex(x=>x.id===id);
+  if(e.lat&&e.lng) map.panTo([e.lat,e.lng],{animate:true,duration:.4});
+  setTimeout(()=>{
+    const px = (e.lat&&e.lng) ? map.latLngToContainerPoint([e.lat,e.lng]) : null;
+    openPopup(group, idx<0?0:idx, px ? {x:px.x, y:px.y} : null);
+  }, 50);
+}
+
+// ── ISW military icon symbol paths (centered on 0,0; scale ~11px) ────────────
+// ── NATO MIL-STD-2525C ISW Icons ─────────────────────────────────
+// Each icon uses the NATO frame: hostile=diamond, unknown=square-rotated,
+// with type-specific interior symbol. Colour from TYPE_COLORS.
+// Interior NATO symbols (36x36 viewBox, centered at 18,18)
+const NATO_SYMBOLS = {
+  // Hostile air — aircraft silhouette in hostile diamond
+  airstrike: (c)=>`<g fill="${c}" transform="translate(18,18)">
+    <polygon points="0,-7 2,-1 8,3 2.5,2 1,5 0,4 -1,5 -2.5,2 -8,3 -2,-1"/>
+    <rect x="-1" y="3.5" width="2" height="3" rx=".8"/>
+  </g>`,
+  // Missile track — arrow with warhead
+  missile: (c)=>`<g fill="${c}" transform="translate(18,18)">
+    <polygon points="0,-8 2,-3 1,-3 1,7 -1,7 -1,-3 -2,-3"/>
+    <polygon points="-3,5 3,5 1,8 -1,8"/>
+  </g>`,
+  // UAV — loitering munition symbol
+  drone: (c)=>`<g stroke="${c}" fill="none" stroke-width="1.3" transform="translate(18,18)">
+    <ellipse cx="0" cy="0" rx="3" ry="2" fill="${c}" stroke="none"/>
+    <line x1="-3" y1="0" x2="-9" y2="-2"/><line x1="-9" y1="-2" x2="-9" y2="2"/><line x1="-9" y1="2" x2="-3" y2="0"/>
+    <line x1="3" y1="0" x2="9" y2="-2"/><line x1="9" y1="-2" x2="9" y2="2"/><line x1="9" y1="2" x2="3" y2="0"/>
+    <line x1="0" y1="2" x2="0" y2="6"/><line x1="-2" y1="6" x2="2" y2="6"/>
+  </g>`,
+  // CBRN — NATO nuclear/bio/chem hazard flash
+  nuclear: (c)=>`<g fill="${c}" transform="translate(18,18)">
+    <circle cx="0" cy="0" r="2.5"/>
+    <path d="M0,-9 L2,-4 A4,4 0 0,1 -2,-4 Z"/>
+    <path d="M7.8,4.5 L3.2,1 A4,4 0 0,1 4.5,-3 Z"/>
+    <path d="M-7.8,4.5 L-3.2,1 A4,4 0 0,1 -4.5,-3 Z"/>
+  </g>`,
+  // Ground unit — NATO infantry rectangle (MIL-STD-2525 hostile ground)
+  ground: (c)=>`<g fill="${c}" transform="translate(18,18)">
+    <rect x="-9" y="-3" width="18" height="6" rx=".5" opacity=".15" fill="${c}"/>
+    <rect x="-9" y="-3" width="18" height="6" rx=".5" fill="none" stroke="${c}" stroke-width="1"/>
+    <line x1="-7" y1="-1" x2="7" y2="1" stroke="${c}" stroke-width="1.5"/>
+    <line x1="-7" y1="1" x2="7" y2="-1" stroke="${c}" stroke-width="1.5"/>
+  </g>`,
+  // Surface — NATO surface unit ship
+  naval: (c)=>`<g fill="${c}" transform="translate(18,18)">
+    <path d="M0,-9 L7,-1 L8,5 L0,8 L-8,5 L-7,-1 Z" fill="${c}" opacity=".2"/>
+    <path d="M0,-9 L7,-1 L8,5 L0,8 L-8,5 L-7,-1 Z" fill="none" stroke="${c}" stroke-width="1.2"/>
+    <line x1="0" y1="-9" x2="0" y2="8" stroke="${c}" stroke-width=".8" opacity=".5"/>
+    <rect x="-3" y="-3" width="6" height="5" fill="${c}" opacity=".4"/>
+  </g>`,
+  // Explosion / BDA — starburst
+  violence: (c)=>`<g fill="${c}" transform="translate(18,18)">
+    <polygon points="0,-9 1.8,-2.5 6,-6 2.8,-0.5 8.5,1 2.8,2.5 6,7 1.2,3.5 0,10 -1.2,3.5 -6,7 -2.8,2.5 -8.5,1 -2.8,-0.5 -6,-6 -1.8,-2.5"/>
+  </g>`,
+  // Engagement area — crossed lines (general hostile action)
+  conflict: (c)=>`<g stroke="${c}" stroke-width="2.2" stroke-linecap="round" fill="none" transform="translate(18,18)">
+    <line x1="-7" y1="-7" x2="7" y2="7"/>
+    <line x1="7" y1="-7" x2="-7" y2="7"/>
+    <line x1="-10" y1="-6" x2="-6" y2="-10"/>
+    <line x1="10" y1="-6" x2="6" y2="-10"/>
+  </g>`,
+  // C2 node — command post symbol
+  strategic: (c)=>`<g stroke="${c}" fill="none" transform="translate(18,18)">
+    <rect x="-8" y="-6" width="16" height="12" rx=".5" stroke-width="1.2"/>
+    <line x1="-6" y1="-3" x2="6" y2="-3" stroke-width="1.3" stroke="${c}"/>
+    <line x1="-6" y1="0" x2="3" y2="0" stroke-width="1.3" stroke="${c}"/>
+    <line x1="-6" y1="3" x2="4" y2="3" stroke-width="1.3" stroke="${c}"/>
+  </g>`,
+  // Detention — padlock
+  arrest: (c)=>`<g fill="${c}" transform="translate(18,18)">
+    <rect x="-5.5" y="-1" width="11" height="9" rx="1.2"/>
+    <path d="M-3.5,-1 L-3.5,-4.5 A3.5,3.5 0 0,1 3.5,-4.5 L3.5,-1" stroke="${c}" stroke-width="2.2" fill="none"/>
+    <rect x="-1.5" y="2" width="3" height="4" rx="1" fill="#00000055"/>
+  </g>`,
+  // Civil disturbance
+  protest: (c)=>`<g fill="${c}" transform="translate(18,18)">
+    <circle cx="0" cy="-5" r="3"/>
+    <path d="M-4,0 Q0,-3 4,0 L3,7 L-3,7 Z"/>
+    <line x1="-5" y1="4" x2="-8" y2="9" stroke="${c}" stroke-width="1.5"/>
+    <line x1="5" y1="4" x2="8" y2="9" stroke="${c}" stroke-width="1.5"/>
+  </g>`,
+  riot: (c)=>`<g fill="${c}" transform="translate(18,18)">
+    <circle cx="0" cy="-5" r="3"/>
+    <path d="M-4,0 Q0,-3 4,0 L3,7 L-3,7 Z"/>
+    <line x1="-5" y1="4" x2="-8" y2="9" stroke="${c}" stroke-width="1.5"/>
+    <line x1="5" y1="4" x2="8" y2="9" stroke="${c}" stroke-width="1.5"/>
+    <line x1="-10" y1="-10" x2="10" y2="10" stroke="${c}" stroke-width="1.5" opacity=".7"/>
+  </g>`,
+  // Supply/logistics — NATO CSS box
+  logistics: (c)=>`<g stroke="${c}" fill="none" transform="translate(18,18)">
+    <rect x="-8" y="-5" width="16" height="10" rx=".5" stroke-width="1.2"/>
+    <path d="M-4,-5 L-4,5" stroke-width="1"/>
+    <path d="M4,-5 L4,5" stroke-width="1"/>
+    <path d="M-8,0 L8,0" stroke-width="1"/>
+  </g>`,
+};
+NATO_SYMBOLS.default = (c)=>`<g stroke="${c}" stroke-width="1.8" fill="none" transform="translate(18,18)">
+  <circle cx="0" cy="0" r="5"/>
+  <line x1="0" y1="-9" x2="0" y2="-6"/><line x1="0" y1="6" x2="0" y2="9"/>
+  <line x1="-9" y1="0" x2="-6" y2="0"/><line x1="6" y1="0" x2="9" y2="0"/>
+</g>`;
+
+function makeISWIcon(group){
+  const rep   = [...group].sort((a,b)=>SEV_ORD.indexOf(a.severity)-SEV_ORD.indexOf(b.severity))[0];
+  const sev   = rep.severity;
+  const type  = rep.type || 'conflict';
+  const count = group.length;
+  const col   = TYPE_COLORS[type] || '#0bc8c8';
+
+  // NATO hostile frame = rotated square (diamond), size scales with severity
+  const hw = sev==='critical'?13:sev==='high'?11:sev==='medium'?10:9;
+  const sz = 42;
+  const cx = 21; const cy = 21;
+
+  // Dramatic pulsing — double rings, all severities
+  const dur  = sev==='critical'?'1.2s':sev==='high'?'1.9s':sev==='medium'?'2.8s':'4.0s';
+  const exp1 = sev==='critical'?14:sev==='high'?11:sev==='medium'?8:5;
+  const exp2 = sev==='critical'?22:sev==='high'?17:sev==='medium'?13:8;
+  const o1   = sev==='critical'?'.8':sev==='high'?'.6':sev==='medium'?'.4':'.25';
+  const o2   = sev==='critical'?'.4':sev==='high'?'.3':sev==='medium'?'.2':'.12';
+  const sw1  = sev==='critical'?2.0:1.4;
+  const sw2  = sev==='critical'?1.2:0.8;
+  // Offset pulse phase by half period for double-ring wave effect
+  const delay2 = sev==='critical'?'0.6s':sev==='high'?'0.95s':sev==='medium'?'1.4s':'2.0s';
+
+  const pulse = `
+    <polygon points="${cx},${cy-hw} ${cx+hw},${cy} ${cx},${cy+hw} ${cx-hw},${cy}"
+      fill="none" stroke="${col}" stroke-width="${sw1}" opacity="${o1}">
+      <animate attributeName="points"
+        values="${cx},${cy-hw} ${cx+hw},${cy} ${cx},${cy+hw} ${cx-hw},${cy};
+                ${cx},${cy-hw-exp1} ${cx+hw+exp1},${cy} ${cx},${cy+hw+exp1} ${cx-hw-exp1},${cy};
+                ${cx},${cy-hw} ${cx+hw},${cy} ${cx},${cy+hw} ${cx-hw},${cy}"
+        dur="${dur}" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="${o1};0;${o1}" dur="${dur}" repeatCount="indefinite"/>
+    </polygon>
+    <polygon points="${cx},${cy-hw} ${cx+hw},${cy} ${cx},${cy+hw} ${cx-hw},${cy}"
+      fill="none" stroke="${col}" stroke-width="${sw2}" opacity="${o2}">
+      <animate attributeName="points"
+        values="${cx},${cy-hw} ${cx+hw},${cy} ${cx},${cy+hw} ${cx-hw},${cy};
+                ${cx},${cy-hw-exp2} ${cx+hw+exp2},${cy} ${cx},${cy+hw+exp2} ${cx-hw-exp2},${cy};
+                ${cx},${cy-hw} ${cx+hw},${cy} ${cx},${cy+hw} ${cx-hw},${cy}"
+        dur="${dur}" begin="${delay2}" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="${o2};0;${o2}" dur="${dur}" begin="${delay2}" repeatCount="indefinite"/>
+    </polygon>`;
+
+  const badge = count>1?`
+    <circle cx="${cx+hw-1}" cy="${cy-hw+1}" r="7" fill="${col}" stroke="#080b0f" stroke-width="1.5"/>
+    <text x="${cx+hw-1}" y="${cy-hw+1}" text-anchor="middle" dominant-baseline="central"
+      font-family="'IBM Plex Mono',monospace" font-size="8" fill="#000" font-weight="bold">${count>9?'9+':count}</text>`:'';
+
+  const symFn = NATO_SYMBOLS[type] || NATO_SYMBOLS.default;
+
+  return L.divIcon({
+    html:`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 ${sz} ${sz}">
+      ${pulse}
+      <!-- NATO hostile frame (rotated square) dark fill -->
+      <polygon points="${cx},${cy-hw-1} ${cx+hw+1},${cy} ${cx},${cy+hw+1} ${cx-hw-1},${cy}"
+        fill="#080b0f" opacity=".85"/>
+      <!-- Coloured border -->
+      <polygon points="${cx},${cy-hw} ${cx+hw},${cy} ${cx},${cy+hw} ${cx-hw},${cy}"
+        fill="${col}" opacity="${sev==='critical'?.18:sev==='high'?.12:.08}"/>
+      <polygon points="${cx},${cy-hw} ${cx+hw},${cy} ${cx},${cy+hw} ${cx-hw},${cy}"
+        fill="none" stroke="${col}" stroke-width="${sev==='critical'?2.0:sev==='high'?1.6:1.2}"/>
+      <!-- Interior NATO symbol -->
+      ${symFn(col)}
+      ${badge}
+    </svg>`,
+    className:'',iconSize:[sz,sz],iconAnchor:[cx,cy]
+  });
+}
+
+// ── Military Sites & Infrastructure ─────────────────────────────
+// Categories: airbase, naval, nuclear, oil, pipeline, port, missile, command, army, radar, intel, power, refinery, logistics
+const MIL_SITES = [
+  // ── US / Coalition Airbases ──────────────────────────────────────
+  {n:"Al-Udeid AB",          lat:25.117, lng:51.315, cat:"airbase",   flag:"US", note:"USAF/USCENTCOM HQ, Qatar"},
+  {n:"Ain al-Asad AB",       lat:33.786, lng:42.441, cat:"airbase",   flag:"US", note:"USAF, western Iraq"},
+  {n:"Erbil AB / Harir",     lat:36.534, lng:44.361, cat:"airbase",   flag:"US", note:"USAF, Iraqi Kurdistan"},
+  {n:"Ali Al Salem AB",      lat:29.347, lng:47.521, cat:"airbase",   flag:"US", note:"USAF, Kuwait"},
+  {n:"Al Dhafra AB",         lat:24.248, lng:54.547, cat:"airbase",   flag:"US", note:"USAF, Abu Dhabi UAE"},
+  {n:"Camp Arifjan",         lat:29.106, lng:48.020, cat:"army",      flag:"US", note:"US Army, Kuwait"},
+  {n:"NSA Bahrain",          lat:26.225, lng:50.586, cat:"naval",     flag:"US", note:"US 5th Fleet HQ"},
+  {n:"Camp Lemonnier",       lat:11.546, lng:43.145, cat:"army",      flag:"US", note:"USAF/SOCOM, Djibouti — Horn of Africa"},
+  {n:"Al-Tanf Garrison",     lat:33.508, lng:38.645, cat:"army",      flag:"US", note:"US SOF garrison, SE Syria — Iran land bridge"},
+  {n:"Muwaffaq Salti AB",    lat:31.827, lng:36.786, cat:"airbase",   flag:"US", note:"USAF, Jordan — key strike/ISR base"},
+  // ── Israeli Airbases ────────────────────────────────────────────
+  {n:"Nevatim AB",           lat:31.208, lng:34.994, cat:"airbase",   flag:"IL", note:"IAF strategic bomber / F-35I base"},
+  {n:"Ramon AB",             lat:30.776, lng:34.667, cat:"airbase",   flag:"IL", note:"IAF, Negev"},
+  {n:"Tel Nof AB",           lat:31.839, lng:34.822, cat:"airbase",   flag:"IL", note:"IAF HQ"},
+  {n:"Hatzor AB",            lat:31.764, lng:34.727, cat:"airbase",   flag:"IL", note:"IAF, central Israel"},
+  {n:"Ramat David AB",       lat:32.665, lng:35.179, cat:"airbase",   flag:"IL", note:"IAF, northern Israel"},
+  {n:"Palmachim AB",         lat:31.896, lng:34.690, cat:"airbase",   flag:"IL", note:"IAF / missile test range"},
+  {n:"Sde Dov AB",           lat:32.101, lng:34.782, cat:"airbase",   flag:"IL", note:"IAF helicopter / ISR, Tel Aviv"},
+  // ── Iranian Airbases ────────────────────────────────────────────
+  {n:"Shahid Nojeh AB",      lat:35.211, lng:48.652, cat:"airbase",   flag:"IR", note:"IRIAF, Hamadan — strategic long-range"},
+  {n:"Tabriz AB",            lat:38.133, lng:46.235, cat:"airbase",   flag:"IR", note:"IRIAF"},
+  {n:"Dezful AB",            lat:32.434, lng:48.397, cat:"airbase",   flag:"IR", note:"IRIAF, Khuzestan"},
+  {n:"Omidiyeh AB",          lat:30.836, lng:49.535, cat:"airbase",   flag:"IR", note:"IRIAF"},
+  {n:"Mehrabad AB",          lat:35.689, lng:51.313, cat:"airbase",   flag:"IR", note:"IRIAF / Tehran"},
+  {n:"Bandar Abbas AB",      lat:27.218, lng:56.378, cat:"airbase",   flag:"IR", note:"IRIAF / IRGCN"},
+  {n:"Isfahan AB (8th Tactical)",lat:32.621,lng:51.861,cat:"airbase", flag:"IR", note:"IRIAF, near nuclear sites"},
+  {n:"Bushehr AB",           lat:28.944, lng:50.834, cat:"airbase",   flag:"IR", note:"IRIAF, co-located with NPP"},
+  // ── Nuclear Facilities ──────────────────────────────────────────
+  {n:"Natanz (FEP)",         lat:33.724, lng:51.926, cat:"nuclear",   flag:"IR", note:"Main uranium enrichment plant"},
+  {n:"Fordow (FFEP)",        lat:34.881, lng:50.993, cat:"nuclear",   flag:"IR", note:"Underground enrichment — 90% U235"},
+  {n:"Arak IR-40",           lat:34.091, lng:49.689, cat:"nuclear",   flag:"IR", note:"Heavy water reactor"},
+  {n:"Parchin",              lat:35.523, lng:51.783, cat:"nuclear",   flag:"IR", note:"Suspected weapons research"},
+  {n:"Bushehr NPP",          lat:28.921, lng:50.830, cat:"nuclear",   flag:"IR", note:"Russian-built power reactor"},
+  {n:"Lavizan / SPND",       lat:35.754, lng:51.506, cat:"nuclear",   flag:"IR", note:"Nuclear weaponisation research"},
+  {n:"Dimona / Negev NRC",   lat:31.003, lng:35.148, cat:"nuclear",   flag:"IL", note:"Israeli nuclear weapons complex"},
+  {n:"Isfahan UCF",          lat:32.641, lng:51.854, cat:"nuclear",   flag:"IR", note:"Uranium conversion facility"},
+  {n:"Saghand Uranium Mine", lat:32.576, lng:55.898, cat:"nuclear",   flag:"IR", note:"Uranium ore production, Yazd"},
+  // ── IRGC / Command Sites ────────────────────────────────────────
+  {n:"IRGC Sarallah HQ",     lat:35.666, lng:51.480, cat:"command",   flag:"IR", note:"IRGC Ground Forces, SE Tehran"},
+  {n:"IRGC Aerospace HQ",    lat:35.694, lng:51.421, cat:"command",   flag:"IR", note:"Khatam al-Anbiya, Tehran"},
+  {n:"Quds Force HQ",        lat:35.730, lng:51.300, cat:"command",   flag:"IR", note:"IRGC Quds Force, NW Tehran"},
+  {n:"Basij Tehran HQ",      lat:35.680, lng:51.390, cat:"command",   flag:"IR", note:"IRGC Basij resistance forces"},
+  {n:"Evin Prison",          lat:35.754, lng:51.380, cat:"command",   flag:"IR", note:"IRGC intel detention facility"},
+  {n:"IDF Northern Cmd",     lat:32.794, lng:35.534, cat:"command",   flag:"IL", note:"IDF Northern Command, Safed"},
+  {n:"IDF Southern Cmd",     lat:31.252, lng:34.791, cat:"command",   flag:"IL", note:"IDF Southern Command, Be'er Sheva"},
+  {n:"Kirya / IDF HQ",       lat:32.071, lng:34.787, cat:"command",   flag:"IL", note:"IDF General Staff HQ, Tel Aviv"},
+  {n:"PMF Jurf al-Sakhar",   lat:32.669, lng:44.151, cat:"command",   flag:"IQ", note:"IRGC-aligned PMF stronghold, Iraq"},
+  {n:"Hezbollah S.Lebanon",  lat:33.270, lng:35.200, cat:"command",   flag:"LB", note:"Hezbollah tunnel network / HQ zone"},
+  {n:"Hamas Gaza HQ",        lat:31.349, lng:34.436, cat:"command",   flag:"PS", note:"Hamas command infrastructure, Gaza"},
+  {n:"Houthi Sanaa HQ",      lat:15.369, lng:44.191, cat:"command",   flag:"YE", note:"Ansarallah / Houthi national command"},
+  // ── Army Bases & Ground Forces ──────────────────────────────────
+  {n:"Camp Victory / BIAP",  lat:33.263, lng:44.234, cat:"army",      flag:"IQ", note:"Former US / now Iraqi Army HQ, Baghdad"},
+  {n:"Taji Military Camp",   lat:33.519, lng:44.364, cat:"army",      flag:"IQ", note:"Iraqi Army training / NATO mission"},
+  {n:"K1 Airbase",           lat:35.469, lng:44.304, cat:"army",      flag:"IQ", note:"Iraqi Army / former US SOF, Kirkuk"},
+  {n:"Qayyarah Airfield",    lat:35.766, lng:43.124, cat:"army",      flag:"IQ", note:"Iraqi Army, Mosul area"},
+  {n:"IRGC Imam Ali Base",   lat:34.580, lng:46.070, cat:"army",      flag:"IR", note:"IRGC ground forces, Kermanshah — fwd Syria"},
+  {n:"Al-Waleed / T-4 AB",   lat:34.556, lng:37.626, cat:"army",      flag:"SY", note:"Syrian / Russian / IRGC fwd base"},
+  {n:"Deir ez-Zor Garrison", lat:35.335, lng:40.150, cat:"army",      flag:"SY", note:"IRGC-backed garrison, eastern Syria"},
+  {n:"Abu Kamal (IRGC)",     lat:34.451, lng:40.921, cat:"army",      flag:"SY", note:"Iran-Iraq corridor crossing point"},
+  {n:"Sednaya Prison",       lat:33.640, lng:36.449, cat:"army",      flag:"SY", note:"Syrian military prison / intelligence"},
+  // ── Missile / Air Defence Sites ─────────────────────────────────
+  {n:"Arrow 3 Site",         lat:31.500, lng:34.600, cat:"missile",   flag:"IL", note:"Israeli BMD / exo-atmospheric"},
+  {n:"Iron Dome Battery",    lat:32.071, lng:34.787, cat:"missile",   flag:"IL", note:"Air defence, greater Tel Aviv"},
+  {n:"David's Sling Site",   lat:31.900, lng:35.100, cat:"missile",   flag:"IL", note:"Israeli medium-range ballistic defense"},
+  {n:"Shahab-3 Base",        lat:35.500, lng:52.000, cat:"missile",   flag:"IR", note:"IRGC MRBM, central Iran"},
+  {n:"Houthi Missile Base",  lat:15.400, lng:44.200, cat:"missile",   flag:"YE", note:"IRGC-supplied Houthi MRBMs"},
+  {n:"Khojir Missile Complex",lat:35.680,lng:51.700, cat:"missile",   flag:"IR", note:"IRGC underground missile production, Tehran"},
+  {n:"Parchin Missile Site", lat:35.519, lng:51.783, cat:"missile",   flag:"IR", note:"IRGC missile testing compound"},
+  {n:"S-400 Site Moscow-Damascus",lat:35.401,lng:35.948,cat:"missile",flag:"SY",note:"Russian S-400 air defence, Hmeimim"},
+  // ── Radar & ISR Sites ────────────────────────────────────────────
+  {n:"Tall al-Hara Radar",   lat:32.984, lng:36.040, cat:"radar",     flag:"SY", note:"Syrian / IRGC radar, southern Syria hilltop"},
+  {n:"IRGC Radar Alborz",    lat:35.900, lng:52.100, cat:"radar",     flag:"IR", note:"IRGC early warning, Alborz mountains"},
+  {n:"Israeli Radar Har Kna'an",lat:32.986,lng:35.498,cat:"radar",    flag:"IL", note:"IDF EW / early warning, northern Israel"},
+  {n:"Jabal al-Druze Radar", lat:32.670, lng:36.590, cat:"radar",     flag:"SY", note:"Syrian air defense radar, southern Syria"},
+  {n:"Pine Gap equiv / Khor",lat:25.673, lng:50.510, cat:"radar",     flag:"US", note:"NSA SIGINT station, Bahrain"},
+  // ── Intelligence & Cyber Sites ───────────────────────────────────
+  {n:"Unit 8200 HQ",         lat:32.154, lng:34.837, cat:"intel",     flag:"IL", note:"IDF signals intelligence / cyber unit"},
+  {n:"Mossad HQ",            lat:32.112, lng:34.945, cat:"intel",     flag:"IL", note:"Israeli intelligence headquarters"},
+  {n:"VAJA (MOIS) Tehran",   lat:35.744, lng:51.498, cat:"intel",     flag:"IR", note:"Iranian Ministry of Intelligence"},
+  {n:"IRGC Intel Tehran",    lat:35.696, lng:51.441, cat:"intel",     flag:"IR", note:"IRGC intelligence organisation HQ"},
+  {n:"Mukhabarat HQ Baghdad",lat:33.315, lng:44.396, cat:"intel",     flag:"IQ", note:"Iraqi National Intelligence Service"},
+  // ── Oil & Gas: Refineries ────────────────────────────────────────
+  {n:"Abadan Refinery",      lat:30.339, lng:48.304, cat:"refinery",  flag:"IR", note:"Largest Iranian refinery — 400kbd"},
+  {n:"Isfahan Refinery",     lat:32.554, lng:51.575, cat:"refinery",  flag:"IR", note:"Major Iranian refinery — central Iran"},
+  {n:"Tehran Refinery",      lat:35.572, lng:51.342, cat:"refinery",  flag:"IR", note:"Shazand / Tehran area refinery"},
+  {n:"Tabriz Refinery",      lat:38.060, lng:46.280, cat:"refinery",  flag:"IR", note:"Northwestern Iran refinery"},
+  {n:"Arak Refinery",        lat:34.077, lng:49.688, cat:"refinery",  flag:"IR", note:"IRGC-linked, central Iran"},
+  {n:"Haifa Refinery",       lat:32.819, lng:35.025, cat:"refinery",  flag:"IL", note:"Israel's main oil refinery"},
+  {n:"Riyadh Refinery",      lat:24.713, lng:46.722, cat:"refinery",  flag:"SA", note:"ARAMCO / PetroRabigh, Riyadh"},
+  {n:"Jubail Refinery",      lat:27.011, lng:49.662, cat:"refinery",  flag:"SA", note:"ARAMCO refining / petrochemicals"},
+  {n:"Abqaiq / Bukayq",      lat:25.930, lng:49.685, cat:"refinery",  flag:"SA", note:"Critical ARAMCO oil processing — 5–7% global supply"},
+  {n:"Ras Tanura Terminal",  lat:26.638, lng:50.160, cat:"oil",       flag:"SA", note:"World's largest oil export terminal"},
+  {n:"Bandar Imam Khomeini", lat:30.415, lng:49.077, cat:"oil",       flag:"IR", note:"Major Iranian oil export terminal"},
+  {n:"Kharg Island",         lat:29.253, lng:50.325, cat:"oil",       flag:"IR", note:"~90% of Iranian crude exports"},
+  {n:"Lavan Island Terminal",lat:26.810, lng:53.358, cat:"oil",       flag:"IR", note:"NIOC offshore oil terminal"},
+  {n:"South Pars / North Dome",lat:27.500,lng:51.500,cat:"oil",       flag:"IR", note:"World's largest gas field (shared IR/QA)"},
+  {n:"Ras Laffan LNG",       lat:25.899, lng:51.547, cat:"oil",       flag:"QA", note:"Largest LNG export complex globally"},
+  {n:"Ghawar Field",         lat:25.124, lng:49.263, cat:"oil",       flag:"SA", note:"World's largest conventional oil field"},
+  {n:"Kirkuk Oil Field",     lat:35.468, lng:44.392, cat:"oil",       flag:"IQ", note:"Major Iraqi northern oil field"},
+  {n:"Basra Gas Company",    lat:30.500, lng:47.800, cat:"oil",       flag:"IQ", note:"Southern Iraq gas processing hub"},
+  {n:"Rumaila Oil Field",    lat:30.052, lng:47.392, cat:"oil",       flag:"IQ", note:"Iraq's largest producing oil field"},
+  // ── Pipelines & Chokepoints ──────────────────────────────────────
+  {n:"Strait of Hormuz",     lat:26.593, lng:56.459, cat:"pipeline",  flag:"IR", note:"~20% of global oil transits daily"},
+  {n:"Bab al-Mandab",        lat:12.583, lng:43.417, cat:"pipeline",  flag:"YE", note:"Red Sea chokepoint — Houthi AO"},
+  {n:"Suez Canal North",     lat:31.250, lng:32.325, cat:"pipeline",  flag:"EG", note:"Northern entrance, Port Said"},
+  {n:"Eilat–Ashkelon Pipeline",lat:29.557,lng:34.952,cat:"pipeline",  flag:"IL", note:"EAPC — Red Sea to Mediterranean"},
+  {n:"Iraq–Turkey Pipeline", lat:37.100, lng:42.000, cat:"pipeline",  flag:"IQ", note:"Kirkuk–Ceyhan export pipeline"},
+  {n:"IGAT-2 Iran–Turkey",   lat:38.389, lng:44.619, cat:"pipeline",  flag:"IR", note:"Iran–Turkey gas pipeline, Bazargan"},
+  {n:"Arab Gas Pipeline",    lat:31.015, lng:32.550, cat:"pipeline",  flag:"EG", note:"Egypt–Jordan–Syria pipeline route"},
+  // ── Naval Bases ──────────────────────────────────────────────────
+  {n:"Bandar Abbas Naval",   lat:27.189, lng:56.276, cat:"naval",     flag:"IR", note:"IRGCN main fleet, Hormuz approach"},
+  {n:"Chabahar Naval",       lat:25.292, lng:60.643, cat:"naval",     flag:"IR", note:"IRIN deep-water base, Gulf of Oman"},
+  {n:"Tartus Naval Base",    lat:34.895, lng:35.887, cat:"naval",     flag:"SY", note:"Russian Mediterranean naval base"},
+  {n:"Hmeimim / Latakia AB", lat:35.401, lng:35.948, cat:"airbase",   flag:"SY", note:"Russian VKS base, Syria — S-400 present"},
+  {n:"IDF Naval Haifa",      lat:32.828, lng:35.002, cat:"naval",     flag:"IL", note:"Israeli Navy main base"},
+  {n:"Port of Hodeidah",     lat:14.798, lng:42.955, cat:"port",      flag:"YE", note:"Houthi-controlled humanitarian port"},
+  {n:"Port of Aden",         lat:12.779, lng:45.036, cat:"port",      flag:"YE", note:"Strategic Gulf of Aden port"},
+  {n:"Port of Haifa",        lat:32.819, lng:34.990, cat:"port",      flag:"IL", note:"Primary Israeli naval / commercial port"},
+  {n:"Port of Aqaba",        lat:29.526, lng:35.007, cat:"port",      flag:"JO", note:"Jordan's only seaport"},
+  {n:"Latakia Port",         lat:35.520, lng:35.776, cat:"port",      flag:"SY", note:"Syrian commercial + military logistics"},
+  {n:"Umm Qasr Naval",       lat:30.035, lng:47.934, cat:"naval",     flag:"IQ", note:"Iraqi Navy / US-trained, Basra"},
+  // ── Power Plants (strategic) ─────────────────────────────────────
+  {n:"Mosul Dam",            lat:36.638, lng:42.826, cat:"power",     flag:"IQ", note:"Iraq's largest dam — collapse risk, strategic"},
+  {n:"Aswan High Dam",       lat:23.970, lng:32.879, cat:"power",     flag:"EG", note:"Egypt strategic water/power choke"},
+  {n:"Khuzestan Power Grid", lat:31.323, lng:48.672, cat:"power",     flag:"IR", note:"Key Iranian power infrastructure, Ahvaz"},
+  {n:"Kazerun Power Plant",  lat:29.619, lng:51.658, cat:"power",     flag:"IR", note:"Major Iranian gas power plant"},
+  {n:"Ramin Power Station",  lat:30.972, lng:49.594, cat:"power",     flag:"IR", note:"Largest thermal power plant, Khuzestan"},
+  {n:"Israeli National Grid Hub",lat:31.890,lng:34.802,cat:"power",   flag:"IL", note:"Israel Electric Corp main distribution node"},
+  // ── Logistics Hubs ───────────────────────────────────────────────
+  {n:"Tabuk Military Logistics",lat:28.375,lng:36.607,cat:"logistics",flag:"SA", note:"Saudi Army depot, northwest — near Jordan/Israel"},
+  {n:"King Khalid Mil City", lat:27.900, lng:45.519, cat:"logistics", flag:"SA", note:"KKMC — major Saudi Army logistics base"},
+  {n:"Shaibah Logistics Base",lat:30.218,lng:47.721, cat:"logistics", flag:"IQ", note:"Former UK / now Iraqi Army logistics depot"},
+  {n:"Bagram-equiv Erbil Log",lat:36.238,lng:43.963, cat:"logistics", flag:"IQ", note:"Kurdish / Coalition logistics, Mosul plain"},
+];
+
+// Category colours and SVG symbols for mil markers
+const MIL_COLORS = {
+  airbase:   '#3a6a8a',  // muted steel blue
+  naval:     '#2a5570',  // dim ocean blue
+  nuclear:   '#7a2a30',  // dark crimson
+  oil:       '#6a5010',  // dim amber
+  pipeline:  '#6a4010',  // dim orange
+  port:      '#1a5a3a',  // dark green
+  missile:   '#5a3a7a',  // muted purple
+  command:   '#6a2a30',  // dim rose
+  army:      '#3a5a2a',  // olive green
+  radar:     '#1a5a5a',  // teal
+  intel:     '#5a4a1a',  // dark gold
+  refinery:  '#6a3a10',  // dark burnt orange
+  power:     '#4a4a10',  // dark yellow
+  logistics: '#2a4a4a',  // dark cyan
+};
+
+// Simple NATO-ish SVG symbols for each category (16×16 viewBox)
+function milSymbolSVG(cat, col){
+  const s = {
+    airbase:   `<path d="M8,1 L9.5,5.5 L14,6 L10.5,9 L11.5,14 L8,11.5 L4.5,14 L5.5,9 L2,6 L6.5,5.5Z" fill="${col}" opacity=".9"/>`,
+    naval:     `<path d="M8,2 L12,6 L12,11 L8,14 L4,11 L4,6Z" fill="none" stroke="${col}" stroke-width="1.5"/><path d="M8,2 L8,14 M4,6 L12,6" stroke="${col}" stroke-width="1"/>`,
+    nuclear:   `<circle cx="8" cy="8" r="2.5" fill="${col}"/><path d="M8,5.5 A2.5,2.5 0 0,1 10.7,9.75 L8,8 Z M10.7,9.75 A2.5,2.5 0 0,1 5.3,9.75 L8,8 Z M5.3,9.75 A2.5,2.5 0 0,1 8,5.5 L8,8 Z" fill="${col}" opacity=".7" transform="scale(1.8) translate(-3.7,-3.7)"/>`,
+    oil:       `<rect x="5" y="3" width="6" height="10" rx="1" fill="${col}" opacity=".85"/><rect x="6.5" y="1.5" width="3" height="3" rx=".5" fill="${col}"/><line x1="8" y1="1.5" x2="8" y2="0" stroke="${col}" stroke-width="1.5"/>`,
+    pipeline:  `<path d="M2,8 Q5,4 8,8 Q11,12 14,8" stroke="${col}" stroke-width="2" fill="none"/><circle cx="2" cy="8" r="1.5" fill="${col}"/><circle cx="14" cy="8" r="1.5" fill="${col}"/>`,
+    port:      `<path d="M3,12 L8,3 L13,12Z" fill="none" stroke="${col}" stroke-width="1.5"/><line x1="8" y1="3" x2="8" y2="14" stroke="${col}" stroke-width="1"/><line x1="3" y1="12" x2="13" y2="12" stroke="${col}" stroke-width="1.5"/>`,
+    missile:   `<polygon points="8,2 10,7 10,13 6,13 6,7" fill="${col}" opacity=".9"/><polygon points="8,2 12,7 10,7" fill="${col}"/><polygon points="8,2 4,7 6,7" fill="${col}"/>`,
+    command:   `<rect x="3" y="3" width="10" height="10" fill="none" stroke="${col}" stroke-width="1.5"/><line x1="3" y1="3" x2="13" y2="13" stroke="${col}" stroke-width="1"/><line x1="13" y1="3" x2="3" y2="13" stroke="${col}" stroke-width="1"/>`,
+    army:      `<rect x="2" y="5" width="12" height="6" rx=".5" fill="none" stroke="${col}" stroke-width="1.3"/><line x1="2" y1="5" x2="14" y2="11" stroke="${col}" stroke-width=".8"/><line x1="14" y1="5" x2="2" y2="11" stroke="${col}" stroke-width=".8"/>`,
+    radar:     `<path d="M8,13 L8,8 M8,8 L3,4 M8,8 L13,4 M8,8 L2,8" stroke="${col}" stroke-width="1.3" fill="none"/><circle cx="8" cy="13" r="1.5" fill="${col}"/><path d="M4,2 Q8,6 12,2" stroke="${col}" stroke-width="1.5" fill="none"/>`,
+    intel:     `<circle cx="8" cy="6" r="3.5" fill="none" stroke="${col}" stroke-width="1.3"/><circle cx="8" cy="6" r="1.2" fill="${col}"/><line x1="8" y1="9.5" x2="8" y2="14" stroke="${col}" stroke-width="1.3"/><line x1="5" y1="14" x2="11" y2="14" stroke="${col}" stroke-width="1.3"/>`,
+    refinery:  `<rect x="5" y="6" width="4" height="7" fill="${col}" opacity=".7"/><rect x="10" y="4" width="3" height="9" fill="${col}" opacity=".7"/><line x1="3" y1="13" x2="13" y2="13" stroke="${col}" stroke-width="1.5"/><path d="M7,6 L7,3 M7,3 Q7,1 9,2" stroke="${col}" stroke-width="1.2" fill="none"/>`,
+    power:     `<polygon points="9,2 6,8 9,8 7,14 12,6 8.5,6 11,2" fill="${col}" opacity=".9"/>`,
+    logistics: `<rect x="2" y="5" width="9" height="6" rx=".5" fill="none" stroke="${col}" stroke-width="1.3"/><circle cx="5" cy="12" r="1.8" fill="${col}"/><circle cx="10" cy="12" r="1.8" fill="${col}"/><line x1="11" y1="8" x2="14" y2="8" stroke="${col}" stroke-width="1.3"/>`,
+  };
+  return s[cat] || s.command;
+}
+
+function makeMilIcon(site){
+  const col = MIL_COLORS[site.cat] || '#2a3a4a';
+  const sym = milSymbolSVG(site.cat, col);
+  const sz  = 16;
+  return L.divIcon({
+    html:`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 16 16" opacity="0.65">
+      <rect x="0.5" y="0.5" width="15" height="15" fill="#080b0f" opacity=".8" stroke="${col}" stroke-width="0.7"/>
+      ${sym}
+    </svg>`,
+    className:'',
+    iconSize:[sz,sz],
+    iconAnchor:[sz/2,sz/2],
+  });
+}
+
+// ── Map overlay state ────────────────────────────────────────────
+// Tile layer references stored after initMap so we can toggle them
+const mapOverlays = {
+  terrain:  { label:'Terrain colour', on:false, layer:null },
+  hillshade:{ label:'3D hillshade',   on:true,  layer:null },
+  roads:    { label:'Roads',          on:false, layer:null },
+  labels:   { label:'Place names',    on:false, layer:null },
+  mil:      { label:'Mil sites',      on:false, layer:null },
+};
+
+function toggleOverlay(key){
+  const ov = mapOverlays[key];
+  if(!ov || !ov.layer) return;
+  ov.on = !ov.on;
+  if(ov.on) ov.layer.addTo(map);
+  else      map.removeLayer(ov.layer);
+}
+
+let milLayer   = null;
+let milVisible = false;
+
+let iswMarkersVisible = true;
+
+function toggleISWMarkers(){
+  iswMarkersVisible = !iswMarkersVisible;
+  document.getElementById('isw-map-toggle').classList.toggle('active', iswMarkersVisible);
+  renderMap(getFiltered());
+}
+
+function buildMilLayer(){
+  if(milLayer) milLayer.clearLayers();
+  else milLayer = L.layerGroup();
+
+  MIL_SITES.forEach(site=>{
+    const col = MIL_COLORS[site.cat] || '#2a3a4a';
+    const marker = L.marker([site.lat, site.lng], {icon: makeMilIcon(site), pane:'milPane'});
+    // Click → small anchored popup
+    marker.on('click', e=>{
+      e.originalEvent.stopPropagation();
+      marker.bindPopup(
+        `<div class="mil-pop">
+          <div class="mil-pop-name">${site.n}</div>
+          <div class="mil-pop-cat" style="color:${col}">${site.cat.toUpperCase()}</div>
+          <div class="mil-pop-note">${site.note}</div>
+        </div>`,
+        {className:'mil-popup', maxWidth:220, offset:[0,-8],
+         closeButton:false, autoPan:false}
+      ).openPopup();
+    });
+    milLayer.addLayer(marker);
+  });
+}
+
+// ── Fetch ────────────────────────────────────────────────────────
+async function fetchData(){
+  const btn=document.getElementById('refresh-btn');
+  btn.textContent='↻ LOADING…'; btn.classList.add('loading');
+  showToast('REFRESHING FEEDS…');
+  try{
+    // Tell server to re-poll all RSS feeds now, don't wait for its 5-min cycle
+    await fetch(`${SERVER}/refresh`,{cache:'no-store'}).catch(()=>{});
+    const r = await fetch(`${SERVER}/latest.json`,{cache:'no-store'});
+    if(!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    if(!Array.isArray(data)) throw new Error('Bad data');
+    allEvents = data;
+    // Init selections on first load only
+    if(selSources.size === 0) [...new Set(data.map(e=>e.source))].forEach(s=>selSources.add(s));
+    if(selTypes.size === 0)   [...new Set(data.map(e=>e.type))].forEach(t=>selTypes.add(t));
+    buildSourceDD();
+    buildTypeDD();
+    buildDayPicker(allEvents);
+    render();
+    setLastRefresh();
+    showToast(`${getFiltered().length} EVENTS LOADED`,2500);
+  }catch(e){
+    showToast(`ERROR: ${e.message} — Is rss-server.py running?`,5000);
+  }
+  btn.textContent='↻ Refresh'; btn.classList.remove('loading');
+  // Fetch ISW independently — failure doesn't block RSS display
+  fetchISW();
+}
+
+// ── Dropdowns ────────────────────────────────────────────────────────
+
+
+function buildSourceDD(){
+  const sources = [...new Set(allEvents.map(e=>e.source))];
+  const credColors = {5:'var(--green)', 4:'#7aaa7a', 3:'var(--amber)'};
+  const menu = document.getElementById('dd-source-menu');
+  menu.innerHTML =
+    `<div class="dd-action">
+      <span onclick="event.stopPropagation();selAllSrc(true)">ALL</span>
+      <span onclick="event.stopPropagation();selAllSrc(false)">NONE</span>
+    </div><div class="dd-divider"></div>` +
+    sources.map(s => {
+      const on  = selSources.has(s);
+      const col = credColors[CRED[s]||3];
+      return `<div class="dd-item ${on?'on':''}" data-key="${s}"
+                   onclick="event.stopPropagation();doToggleSource('${s}')">
+        <div class="dd-check">${on?'✓':''}</div>
+        <span>${s}</span>
+        <span style="margin-left:auto;font-size:8px;color:${col}">${'●'.repeat(CRED[s]||3)}</span>
+      </div>`;
+    }).join('');
+  updateDDBadge('source', selSources.size, sources.length);
+}
+
+function buildTypeDD(){
+  const types = [...new Set(allEvents.map(e=>e.type))].sort();
+  const menu = document.getElementById('dd-type-menu');
+  menu.innerHTML =
+    `<div class="dd-action">
+      <span onclick="event.stopPropagation();selAllTyp(true)">ALL</span>
+      <span onclick="event.stopPropagation();selAllTyp(false)">NONE</span>
+    </div><div class="dd-divider"></div>` +
+    types.map(t => {
+      const on  = selTypes.has(t);
+      const col = TYPE_COLORS[t]||'#888';
+      const cnt = allEvents.filter(e=>e.type===t).length;
+      return `<div class="dd-item ${on?'on':''}" data-key="${t}"
+                   onclick="event.stopPropagation();doToggleType('${t}')">
+        <div class="dd-check">${on?'✓':''}</div>
+        <div class="dd-dot" style="background:${col}"></div>
+        <span style="text-transform:capitalize">${t}</span>
+        <span class="dd-count">${cnt}</span>
+      </div>`;
+    }).join('');
+  updateDDBadge('type', selTypes.size, types.length);
+}
+
+function doToggleSource(s){
+  selSources.has(s) ? selSources.delete(s) : selSources.add(s);
+  // update just this item in-place — don't rebuild the whole menu
+  document.querySelectorAll('#dd-source-menu .dd-item').forEach(el=>{
+    const key = el.getAttribute('data-key');
+    const on  = selSources.has(key);
+    el.classList.toggle('on', on);
+    el.querySelector('.dd-check').textContent = on ? '✓' : '';
+  });
+  const sources = [...new Set(allEvents.map(e=>e.source))];
+  updateDDBadge('source', selSources.size, sources.length);
+  render();
+}
+
+function doToggleType(t){
+  selTypes.has(t) ? selTypes.delete(t) : selTypes.add(t);
+  // update just this item in-place — don't rebuild the whole menu
+  document.querySelectorAll('#dd-type-menu .dd-item').forEach(el=>{
+    const key = el.getAttribute('data-key');
+    const on  = selTypes.has(key);
+    el.classList.toggle('on', on);
+    el.querySelector('.dd-check').textContent = on ? '✓' : '';
+  });
+  const types = [...new Set(allEvents.map(e=>e.type))];
+  updateDDBadge('type', selTypes.size, types.length);
+  render();
+}
+
+function toggleSev(btn){
+  const s = btn.dataset.sev;
+  if(selSevs.has(s)) selSevs.delete(s);
+  else selSevs.add(s);
+  if(selSevs.size===0) selSevs.add(s); // keep at least one active
+  document.querySelectorAll('.sev-pill').forEach(b=>{
+    b.classList.toggle('on-'+b.dataset.sev, selSevs.has(b.dataset.sev));
+  });
+  render();
+}
+
+function selAllSrc(v){
+  selSources.clear();
+  if(v) [...new Set(allEvents.map(e=>e.source))].forEach(s=>selSources.add(s));
+  buildSourceDD();
+  render();
+}
+
+function selAllTyp(v){
+  selTypes.clear();
+  if(v) [...new Set(allEvents.map(e=>e.type))].forEach(t=>selTypes.add(t));
+  buildTypeDD();
+  render();
+}
+
+function updateDDBadge(which, sel, total){
+  const badge = document.getElementById(`dd-${which}-badge`);
+  badge.textContent  = (sel === total) ? 'ALL' : sel;
+  badge.style.background = (sel === total) ? 'var(--amber)' : '#e03c3c';
+}
+
+// DD open/close — overlay-based, no bubbling issues
+let openDD = null;
+
+function closeAllDD(){
+  ['source','type','map','mil'].forEach(w=>{
+    document.getElementById(`dd-${w}-menu`).classList.remove('open');
+    document.getElementById(`dd-${w}-btn`).classList.remove('open');
+  });
+  document.getElementById('dd-overlay').classList.remove('open');
+  openDD = null;
+}
+
+function toggleDD(which){
+  const menu    = document.getElementById(`dd-${which}-menu`);
+  const btn     = document.getElementById(`dd-${which}-btn`);
+  const overlay = document.getElementById('dd-overlay');
+  const isOpen  = menu.classList.contains('open');
+  closeAllDD();
+  if(!isOpen){
+    if(which === 'map') buildMapDD();
+    if(which === 'mil') buildMilDD();
+    const rect = btn.getBoundingClientRect();
+    menu.style.left = rect.left + 'px';
+    menu.classList.add('open');
+    btn.classList.add('open');
+    overlay.classList.add('open');
+    openDD = which;
+  }
+}
+
+function buildMapDD(){
+  const menu = document.getElementById('dd-map-menu');
+  menu.innerHTML = Object.entries(mapOverlays)
+    .filter(([key]) => key !== 'mil')
+    .map(([key, ov]) => `
+      <div class="dd-item${ov.on?' on':''}" onclick="toggleOverlay('${key}');buildMapDD()">
+        <span class="dd-check">${ov.on?'✓':''}</span>
+        <span>${ov.label}</span>
+      </div>`).join('');
+}
+
+function buildMilDD(){
+  const menu   = document.getElementById('dd-mil-menu');
+  const iswOn  = iswMarkersVisible;
+  const milOn  = mapOverlays.mil?.on ?? false;
+  menu.innerHTML = `
+    <div class="dd-item${iswOn?' on':''}" onclick="toggleISWMarkers();buildMilDD()">
+      <span class="dd-check">${iswOn?'✓':''}</span>
+      <span>ISW events</span>
+    </div>
+    <div class="dd-item${milOn?' on':''}" onclick="toggleOverlay('mil');buildMilDD()">
+      <span class="dd-check">${milOn?'✓':''}</span>
+      <span>Mil sites</span>
+    </div>`;
+}
+
+// ── Day helpers ──────────────────────────────────────────────────
+function eventDateKey(e){
+  // Returns "YYYY-MM-DD" in UTC for a given event
+  if(!e.pub) return null;
+  try{ return new Date(e.pub).toISOString().slice(0,10); }
+  catch{ return null; }
+}
+
+function getAvailableDays(events){
+  const days = [...new Set(events.map(e=>eventDateKey(e)).filter(Boolean))];
+  return days.sort((a,b)=>b.localeCompare(a)); // newest first
+}
+
+function dayLabel(dateKey){
+  const today     = new Date().toISOString().slice(0,10);
+  const yesterday = new Date(Date.now()-86400000).toISOString().slice(0,10);
+  if(dateKey === today)     return 'TODAY';
+  if(dateKey === yesterday) return 'YESTERDAY';
+  // e.g. "MON 03"
+  const d = new Date(dateKey+'T12:00:00Z');
+  return d.toLocaleDateString('en-US',{weekday:'short',day:'2-digit',timeZone:'UTC'}).toUpperCase().replace(',',' ');
+}
+
+function buildDayPicker(events){
+  const days = getAvailableDays(events);
+  const picker = document.getElementById('day-picker');
+  if(days.length <= 1){ picker.innerHTML=''; return; }
+  // Auto-select latest if selectedDay not present in current data
+  if(!selectedDay || !days.includes(selectedDay)) selectedDay = days[0];
+  picker.innerHTML = days.map(d=>
+    `<button class="day-btn${d===selectedDay?' active':''}" onclick="selectDay('${d}')">${dayLabel(d)}</button>`
+  ).join('');
+}
+
+function selectDay(d){
+  selectedDay = d;
+  buildDayPicker(allEvents);
+  render();
+}
+
+// ── Filter ───────────────────────────────────────────────────────
+function getFiltered(){
+  const days = getAvailableDays(allEvents);
+  const activeDay = (selectedDay && days.includes(selectedDay)) ? selectedDay : (days[0]||null);
+  return allEvents.filter(e=>
+    selSources.has(e.source) &&
+    selTypes.has(e.type) &&
+    selSevs.has(e.severity) &&
+    (!activeDay || eventDateKey(e)===activeDay)
+  );
+}
+
+// ── Render ───────────────────────────────────────────────────────
+function render(){
+  const evs=getFiltered();
+  document.getElementById('news-count').textContent=evs.length;
+  const days=getAvailableDays(allEvents);
+  const activeDay=(selectedDay&&days.includes(selectedDay))?selectedDay:(days[0]||null);
+  document.getElementById('news-title').textContent = activeDay ? 'NEWS STREAM · '+dayLabel(activeDay) : 'NEWS STREAM';
+  renderNews(evs);
+  renderMap(evs);
+}
+
+// ── News stream ──────────────────────────────────────────────────
+function fmtTime(iso){
+  if(!iso) return '──';
+  try{
+    const d=new Date(iso),now=new Date(),diff=Math.floor((now-d)/60000);
+    if(diff<1) return 'NOW';
+    if(diff<60) return diff+'m AGO';
+    if(diff<1440) return Math.floor(diff/60)+'h AGO';
+    return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  }catch{return '──'}
+}
+
+function renderNews(evs){
+  const list=document.getElementById('news-list');
+  if(!evs.length){
+    list.innerHTML=`<div style="padding:20px 14px;font-size:10px;color:var(--text-dim);text-align:center">NO EVENTS MATCH FILTERS</div>`;
+    return;
+  }
+  list.innerHTML=evs.map(e=>{
+    const col=TYPE_COLORS[e.type]||'#888';
+    const cred=CRED[e.source]||3;
+    return `<div class="art-card" id="card-${e.id}" onclick="cardClick('${e.id}')">
+      <div class="art-sev-bar sev-${e.severity}"></div>
+      <div class="art-meta">
+        <span class="art-source c${cred}">${e.source.replace(' Middle East','')}</span>
+        <span class="art-type t-${e.type}" style="background:${col}18">${e.label||e.type}</span>
+        <span class="art-time">${fmtTime(e.pub)}</span>
+      </div>
+      <div class="art-title">${e.title}</div>
+      <div class="art-loc">⌖ ${e.location||'──'}</div>
+    </div>`;
+  }).join('');
+  window.__evMap={};
+  evs.forEach(e=>window.__evMap[e.id]=e);
+  getISWFiltered().forEach(e=>window.__evMap[e.id]=e);
+}
+
+function cardClick(id){
+  const e=window.__evMap[id];
+  if(!e) return;
+  const evs=getFiltered();
+  const group=evs.filter(x=>x.lat&&x.lng&&e.lat&&e.lng&&
+    Math.abs(x.lat-e.lat)<0.15&&Math.abs(x.lng-e.lng)<0.15);
+  const idx=group.findIndex(x=>x.id===e.id);
+  if(e.lat&&e.lng) map.panTo([e.lat,e.lng],{animate:true,duration:.4});
+  // Derive pixel position after pan settles (one frame later)
+  setTimeout(()=>{
+    const px = (e.lat&&e.lng) ? map.latLngToContainerPoint([e.lat,e.lng]) : null;
+    openPopup(group, idx<0?0:idx, px ? {x:px.x, y:px.y} : null);
+  }, 50);
+}
+
+// ── Map render ───────────────────────────────────────────────────
+function makeIcon(group){
+  const rep=[...group].sort((a,b)=>SEV_ORD.indexOf(a.severity)-SEV_ORD.indexOf(b.severity))[0];
+  const col=TYPE_COLORS[rep.type]||'#888';
+  const count=group.length;
+  const sev=rep.severity;
+
+  const baseR = sev==='critical'?9:sev==='high'?7:6;
+  const r = Math.min(baseR + Math.floor(Math.log2(count+1)*1.5), 16);
+
+  // Dramatic double-ring pulse — all severities, speed/reach/opacity scale with urgency
+  const dur    = sev==='critical'?'1.2s':sev==='high'?'1.9s':sev==='medium'?'2.8s':'4.0s';
+  const rMax1  = sev==='critical'?r+16:sev==='high'?r+12:sev==='medium'?r+8:r+5;
+  const rMax2  = sev==='critical'?r+26:sev==='high'?r+20:sev==='medium'?r+14:r+9;
+  const o1     = sev==='critical'?'.85':sev==='high'?'.65':sev==='medium'?'.45':'.28';
+  const o2     = sev==='critical'?'.4':sev==='high'?'.28':sev==='medium'?'.18':'.1';
+  const sw1    = sev==='critical'?2.2:sev==='high'?1.8:1.2;
+  const sw2    = sev==='critical'?1.2:0.8;
+  const delay2 = sev==='critical'?'0.6s':sev==='high'?'0.95s':sev==='medium'?'1.4s':'2.0s';
+  const pulse  = `
+    <circle cx="20" cy="20" r="${r}" fill="none" stroke="${col}" stroke-width="${sw1}" opacity="${o1}">
+      <animate attributeName="r"       values="${r};${rMax1};${r}" dur="${dur}" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="${o1};0;${o1}"      dur="${dur}" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="20" cy="20" r="${r}" fill="none" stroke="${col}" stroke-width="${sw2}" opacity="${o2}">
+      <animate attributeName="r"       values="${r};${rMax2};${r}" dur="${dur}" begin="${delay2}" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="${o2};0;${o2}"      dur="${dur}" begin="${delay2}" repeatCount="indefinite"/>
+    </circle>`;
+
+  const glow = (sev==='critical'||sev==='high')?
+    `<circle cx="20" cy="20" r="${r+5}" fill="${col}" opacity="0.12"/>`:'';
+
+  const badge = count>1?`
+    <circle cx="${20+r-2}" cy="${20-r+2}" r="8" fill="${col}" stroke="var(--bg2)" stroke-width="1.5" opacity="1"/>
+    <text x="${20+r-2}" y="${20-r+2}" text-anchor="middle" dominant-baseline="central"
+      font-family="'IBM Plex Mono',monospace" font-size="9" fill="#000" font-weight="bold">${count>9?'9+':count}</text>
+    `:'';
+
+  const sz=40;
+  return L.divIcon({
+    html:`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 ${sz} ${sz}">
+      ${pulse}${glow}
+      <circle cx="20" cy="20" r="${r}" fill="${col}" opacity=".9"/>
+      <circle cx="20" cy="20" r="${Math.max(2,r-4)}" fill="#000" opacity=".35"/>
+      ${badge}
+    </svg>`,
+    className:'',iconSize:[sz,sz],iconAnchor:[20,20]
+  });
+}
+
+function renderMap(evs){
+  markerGroup.clearLayers();
+
+  // Grid key → lat/lng for RSS markers already placed
+  // When an ISW group falls in the same cell, nudge its position
+  const GRID = 0.15;  // ~15km cell
+  const gridKey = (lat,lng) => `${(lat/GRID).toFixed(0)},${(lng/GRID).toFixed(0)}`;
+
+  // ── RSS circles ───────────────────────────────────────────────
+  const groups = {};
+  evs.forEach(e=>{
+    if(!e.lat||!e.lng) return;
+    const k = gridKey(e.lat, e.lng);
+    if(!groups[k]) groups[k]=[];
+    groups[k].push(e);
+  });
+
+  const rssOccupied = new Set(Object.keys(groups)); // cells that have RSS markers
+
+  Object.values(groups).forEach(grp=>{
+    const rep=[...grp].sort((a,b)=>SEV_ORD.indexOf(a.severity)-SEV_ORD.indexOf(b.severity))[0];
+    L.marker([rep.lat,rep.lng],{icon:makeIcon(grp), pane:'markersPane'})
+     .on('click',ev=>{
+       ev.originalEvent.stopPropagation();
+       const sorted=[...grp].sort((a,b)=>SEV_ORD.indexOf(a.severity)-SEV_ORD.indexOf(b.severity));
+       const px = map.latLngToContainerPoint([rep.lat, rep.lng]);
+       openPopup(sorted, 0, {x: px.x, y: px.y});
+     })
+     .addTo(markerGroup);
+  });
+
+  // ── ISW diamonds — only when toggled on ──────────────────────
+  if(iswMarkersVisible){
+  // shift ~0.06° NE (about 6-7km) — enough to clear the marker visually
+  const ISW_LAT_OFF =  0.07;
+  const ISW_LNG_OFF =  0.10;
+
+  const iswGroups = {};
+  getISWFiltered().forEach(e=>{
+    if(!e.lat||!e.lng) return;
+    const k = gridKey(e.lat, e.lng);
+    if(!iswGroups[k]) iswGroups[k]=[];
+    iswGroups[k].push(e);
+  });
+
+  Object.values(iswGroups).forEach(grp=>{
+    const rep=[...grp].sort((a,b)=>SEV_ORD.indexOf(a.severity)-SEV_ORD.indexOf(b.severity))[0];
+
+    // If this cell already has an RSS circle, nudge the diamond NE
+    const cell  = gridKey(rep.lat, rep.lng);
+    const clash = rssOccupied.has(cell);
+    const plat  = rep.lat + (clash ? ISW_LAT_OFF : 0);
+    const plng  = rep.lng + (clash ? ISW_LNG_OFF : 0);
+
+    L.marker([plat, plng],{icon:makeISWIcon(grp), pane:'markersPane'})
+     .on('click',ev=>{
+       ev.originalEvent.stopPropagation();
+       const sorted=[...grp].sort((a,b)=>SEV_ORD.indexOf(a.severity)-SEV_ORD.indexOf(b.severity));
+       // Use original (non-nudged) coords for popup position — matches the data
+       const px = map.latLngToContainerPoint([plat, plng]);
+       openPopup(sorted, 0, {x: px.x, y: px.y});
+     })
+     .addTo(markerGroup);
+  });
+  } // end iswMarkersVisible
+}
+
+// ── Popup ────────────────────────────────────────────────────────
+function positionPopup(clickPx){
+  // clickPx: {x, y} in map-wrap container coords, or null
+  const popup  = document.getElementById('popup');
+  const wrap   = document.getElementById('map-wrap');
+  const W      = wrap.offsetWidth;
+  const H      = wrap.offsetHeight;
+  const PW     = 400;   // popup width (matches CSS)
+  const OFFSET = 18;    // gap from marker
+
+  // Estimate popup height from content; clamp to reasonable range
+  popup.style.top  = '0px';
+  popup.style.left = '0px';
+  // Make briefly visible off-screen to measure height
+  popup.style.visibility = 'hidden';
+  popup.style.display    = 'flex';
+  const PH = Math.min(popup.offsetHeight, H - 24);
+  popup.style.visibility = '';
+  popup.style.display    = '';
+
+  let x, y;
+  if(clickPx){
+    // Try to place to the right of the marker; fall back left if near right edge
+    if(clickPx.x + OFFSET + PW < W - 8){
+      x = clickPx.x + OFFSET;
+    } else {
+      x = clickPx.x - OFFSET - PW;
+    }
+    // Try to center vertically on click point
+    y = clickPx.y - PH / 2;
+  } else {
+    // Card click or ISW click — place top-right with margin
+    x = W - PW - 12;
+    y = 12;
+  }
+
+  // Clamp within map-wrap bounds
+  x = Math.max(8, Math.min(x, W - PW - 8));
+  y = Math.max(8, Math.min(y, H - PH - 8));
+
+  popup.style.left = x + 'px';
+  popup.style.top  = y + 'px';
+}
+
+function openPopup(group, idx, clickPx){
+  popupGroup = group;
+  popupIdx   = idx;
+  renderPopup();
+  positionPopup(clickPx || null);
+  document.getElementById('popup').classList.add('visible');
+}
+
+function renderPopup(){
+  const e=popupGroup[popupIdx];
+  if(!e) return;
+  const col=TYPE_COLORS[e.type]||'#888';
+  const cred=CRED[e.source]||3;
+
+  // Sev bar — ISW gets cyan regardless of sev class
+  const sevEl=document.getElementById('popup-sev');
+  if(e.source==='ISW'){
+    sevEl.className=''; sevEl.style.height='3px'; sevEl.style.background='#0bc8c8';
+  } else {
+    sevEl.className=`sev-${e.severity}`; sevEl.style.height='3px'; sevEl.style.background='';
+  }
+
+  // Source
+  const srcEl=document.getElementById('popup-source-tag');
+  srcEl.textContent=e.source;
+  if(e.source==='ISW'){
+    srcEl.className='';
+    srcEl.style.cssText=`font-size:8px;letter-spacing:.06em;text-transform:uppercase;padding:2px 5px;border:1px solid #0bc8c8;color:#0bc8c8`;
+  } else {
+    srcEl.className=`c${cred}`;
+    srcEl.style.cssText=`font-size:8px;letter-spacing:.06em;text-transform:uppercase;padding:2px 5px;border:1px solid`;
+  }
+
+  // Type
+  const ttEl=document.getElementById('popup-type-tag');
+  ttEl.textContent=e.label||e.type;
+  ttEl.className=`t-${e.type}`;
+  ttEl.style.cssText=`font-size:8px;padding:2px 5px;text-transform:uppercase;letter-spacing:.05em;background:${col}1a`;
+
+  document.getElementById('popup-time-tag').textContent=fmtTime(e.pub);
+  document.getElementById('popup-title').textContent=e.title;
+  document.getElementById('popup-summary').textContent=e.summary||'';
+  document.getElementById('popup-loc-txt').textContent=`${e.location||'Unknown'} · ${e.country||''}`;
+
+  const cats=(e.categories||[]).slice(0,5);
+  document.getElementById('popup-cats').innerHTML=cats.map(c=>`<span class="pcap">${c}</span>`).join('');
+
+  document.getElementById('popup-link').href=e.url||'#';
+
+  // Nav
+  const nav=document.getElementById('popup-nav');
+  if(popupGroup.length>1){
+    nav.classList.add('visible');
+    document.getElementById('popup-nav-label').textContent=`${popupIdx+1} / ${popupGroup.length}`;
+    document.getElementById('nav-prev').disabled=popupIdx===0;
+    document.getElementById('nav-next').disabled=popupIdx===popupGroup.length-1;
+  } else {
+    nav.classList.remove('visible');
+  }
+
+  // Highlight card in news stream
+  document.querySelectorAll('.art-card').forEach(c=>c.classList.remove('selected'));
+  const card=document.getElementById(`card-${e.id}`);
+  if(card){
+    card.classList.add('selected');
+    card.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+}
+
+function navGroup(dir){
+  popupIdx=Math.max(0,Math.min(popupGroup.length-1,popupIdx+dir));
+  renderPopup();
+}
+
+function closePopup(){
+  document.getElementById('popup').classList.remove('visible');
+  document.querySelectorAll('.art-card').forEach(c=>c.classList.remove('selected'));
+  popupGroup=[]; popupIdx=0;
+}
+
+// ── Toast ────────────────────────────────────────────────────────
+let _tt=null;
+function showToast(msg,ms=0){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  if(_tt) clearTimeout(_tt);
+  if(ms>0) _tt=setTimeout(()=>t.classList.remove('show'),ms);
+}
+
+// ── Init ─────────────────────────────────────────────────────────
+initMap();
+</script>
+</body>
+</html>
