@@ -154,6 +154,39 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 #news-list::-webkit-scrollbar{width:3px}
 #news-list::-webkit-scrollbar-thumb{background:var(--border2)}
 
+/* Loading state in news panel */
+.news-loading{
+  padding:32px 14px;display:flex;flex-direction:column;align-items:center;
+  gap:16px;color:var(--text-dim);text-align:center;
+}
+.news-loading .spinner{
+  width:28px;height:28px;border:2px solid var(--border2);
+  border-top-color:var(--amber);border-radius:50%;
+  animation:spin .8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.news-loading .load-label{
+  font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--amber);
+}
+.news-loading .load-sub{
+  font-size:8px;letter-spacing:.08em;color:var(--text-dim);line-height:1.8;margin-top:-6px;
+}
+.news-server-hint{
+  padding:28px 14px;display:flex;flex-direction:column;align-items:center;
+  gap:10px;text-align:center;
+}
+.news-server-hint .hint-cmd{
+  font-size:10px;letter-spacing:.06em;color:var(--amber);
+  background:var(--bg3);border:1px solid var(--border2);
+  padding:6px 12px;border-radius:2px;white-space:nowrap;
+}
+.news-server-hint .hint-label{
+  font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);
+}
+.news-server-hint .hint-arrow{
+  font-size:14px;color:var(--border2);
+}
+
 /* Day picker */
 #day-picker{
   display:flex;gap:0;flex-shrink:0;
@@ -526,9 +559,11 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
       </div>
       <div id="day-picker"></div>
       <div id="news-list">
-        <div style="padding:24px 14px;font-size:10px;color:var(--text-dim);text-align:center;line-height:2">
-          <div>Run: python3 rss-server.py</div>
-          <div>Then click ↻ REFRESH</div>
+        <div class="news-server-hint">
+          <div class="hint-label">Start the data server</div>
+          <div class="hint-cmd">python3 rss-server.py</div>
+          <div class="hint-arrow">↓</div>
+          <div class="hint-label">then click ↻ Refresh</div>
         </div>
       </div>
     </div>
@@ -1257,8 +1292,16 @@ function buildMilLayer(){
 
 // ── Fetch ────────────────────────────────────────────────────────
 async function fetchData(){
-  const btn=document.getElementById('refresh-btn');
+  const btn  = document.getElementById('refresh-btn');
+  const list = document.getElementById('news-list');
   btn.textContent='↻ LOADING…'; btn.classList.add('loading');
+  // Show spinner in news panel immediately
+  list.innerHTML = `
+    <div class="news-loading">
+      <div class="spinner"></div>
+      <div class="load-label">Fetching feeds…</div>
+      <div class="load-sub">Polling RSS sources<br>Please wait</div>
+    </div>`;
   showToast('REFRESHING FEEDS…');
   try{
     // Tell server to re-poll all RSS feeds now, don't wait for its 5-min cycle
@@ -1278,6 +1321,13 @@ async function fetchData(){
     setLastRefresh();
     showToast(`${getFiltered().length} EVENTS LOADED`,2500);
   }catch(e){
+    list.innerHTML = `
+      <div class="news-server-hint">
+        <div class="hint-label" style="color:#f85149">Connection failed</div>
+        <div class="hint-cmd">python3 rss-server.py</div>
+        <div class="hint-arrow">↓</div>
+        <div class="hint-label">then click ↻ Refresh</div>
+      </div>`;
     showToast(`ERROR: ${e.message} — Is rss-server.py running?`,5000);
   }
   btn.textContent='↻ Refresh'; btn.classList.remove('loading');
