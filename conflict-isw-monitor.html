@@ -6,7 +6,9 @@
 <title>CONFLICT MONITOR</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Barlow+Condensed:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<!-- Mapbox GL JS loaded lazily when engine is switched -->
+<style id="mapbox-css-placeholder"></style>
+<link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -15,8 +17,8 @@
   --amber:#f0a500;--amber-dim:#7a5200;
   --green:#3ce084;--blue:#3ca8e0;
   --text:#c8d8e8;--text-dim:#4a6070;--text-mid:#7a9ab0;
-  --mono:'IBM Plex Mono',monospace;
-  --cond:'Barlow Condensed',sans-serif;
+  --mono:'JetBrains Mono',monospace;
+  --cond:'Oxanium',sans-serif;
   --panel:280px;
   --topbar:46px;
   --scanline:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.06) 2px,rgba(0,0,0,.06) 4px);
@@ -132,9 +134,9 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 .mil-popup .leaflet-popup-tip-container{display:none}
 .mil-popup .leaflet-popup-content{margin:0;padding:0}
 .mil-pop{padding:9px 12px;min-width:160px}
-.mil-pop-name{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;color:#c8d8e8;margin-bottom:3px}
-.mil-pop-cat{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.12em;margin-bottom:5px}
-.mil-pop-note{font-family:'IBM Plex Mono',monospace;font-size:9px;color:#4a6070;line-height:1.5}
+.mil-pop-name{font-family:'Oxanium',sans-serif;font-weight:700;font-size:14px;color:#c8d8e8;margin-bottom:3px}
+.mil-pop-cat{font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:.12em;margin-bottom:5px}
+.mil-pop-note{font-family:'JetBrains Mono',monospace;font-size:9px;color:#4a6070;line-height:1.5}
 
 /* ── Left panel: news stream ── */
 #news-panel{
@@ -397,6 +399,55 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 /* Terrain colour layer: screen blend lifts earth tones through dark base */
 .terrain-colour-layer { mix-blend-mode: screen; }
 .leaflet-tooltip{background:transparent!important;border:none!important;box-shadow:none!important;padding:0!important}
+
+/* ── Mapbox engine ── */
+#mapbox-map{ position:absolute;inset:0;display:none; }
+#mapbox-map.active{ display:block; }
+#map.hidden{ visibility:hidden;pointer-events:none; }
+
+/* Token prompt — floats below Map dropdown when Mapbox selected */
+#mapbox-token-wrap{
+  display:none;position:fixed;top:var(--topbar);z-index:1001;
+  background:var(--bg2);border:1px solid var(--border2);
+  padding:10px 12px;box-shadow:0 12px 32px rgba(0,0,0,.85);
+  min-width:320px;
+}
+#mapbox-token-wrap.open{ display:block; }
+#mapbox-token-wrap label{
+  font-size:8px;letter-spacing:.1em;color:var(--text-dim);
+  text-transform:uppercase;display:block;margin-bottom:6px;
+}
+#mapbox-token-input{
+  width:100%;background:var(--bg3);border:1px solid var(--border2);
+  color:var(--text);font-family:var(--mono);font-size:9px;
+  padding:5px 8px;outline:none;
+}
+#mapbox-token-input:focus{ border-color:var(--amber); }
+#mapbox-token-submit{
+  margin-top:7px;width:100%;font-family:var(--mono);font-size:9px;
+  letter-spacing:.1em;text-transform:uppercase;
+  background:var(--amber);color:var(--bg);border:none;
+  padding:5px;cursor:pointer;font-weight:bold;
+}
+#mapbox-token-submit:hover{ background:#ffc030; }
+.dd-divider-label{
+  padding:6px 10px 2px;font-size:8px;letter-spacing:.1em;
+  color:var(--text-dim);text-transform:uppercase;
+}
+.dd-engine-row{
+  display:flex;align-items:center;gap:0;padding:2px 10px 4px;
+}
+.dd-engine-btn{
+  font-family:var(--mono);font-size:9px;letter-spacing:.08em;
+  text-transform:uppercase;padding:4px 10px;cursor:pointer;
+  background:var(--bg3);border:1px solid var(--border2);color:var(--text-dim);
+  transition:all .12s;
+}
+.dd-engine-btn:first-child{ border-right:none; }
+.dd-engine-btn.active{
+  background:var(--amber);color:var(--bg);border-color:var(--amber);font-weight:bold;
+}
+.dd-engine-btn:hover:not(.active){ border-color:var(--amber);color:var(--amber); }
 </style>
 </head>
 <body>
@@ -488,6 +539,14 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
       <!-- Map -->
       <div id="map-wrap">
         <div id="map"></div>
+        <div id="mapbox-map"></div>
+
+        <!-- Mapbox token prompt -->
+        <div id="mapbox-token-wrap">
+          <label>Mapbox Public Token (pk.eyJ1…)</label>
+          <input id="mapbox-token-input" type="text" placeholder="pk.eyJ1..." spellcheck="false"/>
+          <button id="mapbox-token-submit" onclick="submitMapboxToken()">Activate 3D Engine →</button>
+        </div>
 
         <!-- Popup -->
         <div id="popup">
@@ -543,6 +602,10 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 
 <script>
 const SERVER = 'http://localhost:8766';
+let mapEngine = 'leaflet'; // 'leaflet' | 'mapbox'
+let mbMap = null;          // Mapbox GL map instance
+let mbToken = '';          // Mapbox public token
+let mbMarkers = [];        // active Mapbox marker objects
 const TYPE_COLORS = {
   // Kinetic / weapons
   airstrike: '#ff6b6b',   // bright red     — air strike
@@ -592,8 +655,8 @@ let popupIdx   = 0;
 // ── Last-refresh stamp ───────────────────────────────────────────
 function setLastRefresh(){
   const n = new Date();
-  const hhmm = String(n.getUTCHours()).padStart(2,'0')+':'+String(n.getUTCMinutes()).padStart(2,'0');
-  document.getElementById('clock').textContent = 'REFRESHED '+hhmm+' UTC';
+  const hhmm = String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
+  document.getElementById('clock').textContent = 'REFRESHED '+hhmm;
 }
 
 // ── Map ──────────────────────────────────────────────────────────
@@ -869,7 +932,8 @@ NATO_SYMBOLS.default = (c)=>`<g stroke="${c}" stroke-width="1.8" fill="none" tra
   <line x1="-9" y1="0" x2="-6" y2="0"/><line x1="6" y1="0" x2="9" y2="0"/>
 </g>`;
 
-function makeISWIcon(group){
+function makeISWIcon(group, scale){
+  scale = scale || 1.0;
   const rep   = [...group].sort((a,b)=>SEV_ORD.indexOf(a.severity)-SEV_ORD.indexOf(b.severity))[0];
   const sev   = rep.severity;
   const type  = rep.type || 'conflict';
@@ -878,8 +942,8 @@ function makeISWIcon(group){
 
   // NATO hostile frame = rotated square (diamond), size scales with severity
   const hw = sev==='critical'?13:sev==='high'?11:sev==='medium'?10:9;
-  const sz = 42;
-  const cx = 21; const cy = 21;
+  const sz = Math.round(42 * scale);
+  const cx = Math.round(sz/2); const cy = Math.round(sz/2);
 
   // Dramatic pulsing — double rings, all severities
   const dur  = sev==='critical'?'1.2s':sev==='high'?'1.9s':sev==='medium'?'2.8s':'4.0s';
@@ -915,7 +979,7 @@ function makeISWIcon(group){
   const badge = count>1?`
     <circle cx="${cx+hw-1}" cy="${cy-hw+1}" r="7" fill="${col}" stroke="#080b0f" stroke-width="1.5"/>
     <text x="${cx+hw-1}" y="${cy-hw+1}" text-anchor="middle" dominant-baseline="central"
-      font-family="'IBM Plex Mono',monospace" font-size="8" fill="#000" font-weight="bold">${count>9?'9+':count}</text>`:'';
+      font-family="'JetBrains Mono',monospace" font-size="8" fill="#000" font-weight="bold">${count>9?'9+':count}</text>`:'';
 
   const symFn = NATO_SYMBOLS[type] || NATO_SYMBOLS.default;
 
@@ -1143,8 +1207,14 @@ const mapOverlays = {
 
 function toggleOverlay(key){
   const ov = mapOverlays[key];
-  if(!ov || !ov.layer) return;
+  if(!ov) return;
   ov.on = !ov.on;
+  if(mapEngine === 'mapbox'){
+    // Tile overlays don't apply in Mapbox — only mil sites matters
+    if(key === 'mil') renderMapbox(getFiltered());
+    return;
+  }
+  if(!ov.layer) return;
   if(ov.on) ov.layer.addTo(map);
   else      map.removeLayer(ov.layer);
 }
@@ -1157,7 +1227,8 @@ let iswMarkersVisible = true;
 function toggleISWMarkers(){
   iswMarkersVisible = !iswMarkersVisible;
   document.getElementById('isw-map-toggle').classList.toggle('active', iswMarkersVisible);
-  renderMap(getFiltered());
+  if(mapEngine === 'mapbox') renderMapbox(getFiltered());
+  else renderMap(getFiltered());
 }
 
 function buildMilLayer(){
@@ -1353,13 +1424,25 @@ function toggleDD(which){
 
 function buildMapDD(){
   const menu = document.getElementById('dd-map-menu');
-  menu.innerHTML = Object.entries(mapOverlays)
+  const tileItems = Object.entries(mapOverlays)
     .filter(([key]) => key !== 'mil')
     .map(([key, ov]) => `
-      <div class="dd-item${ov.on?' on':''}" onclick="toggleOverlay('${key}');buildMapDD()">
+      <div class="dd-item${ov.on?' on':''}${mapEngine==='mapbox'?' dd-item-disabled':''}"
+           onclick="${mapEngine==='leaflet'?`toggleOverlay('${key}');buildMapDD()`:'void(0)'}">
         <span class="dd-check">${ov.on?'✓':''}</span>
         <span>${ov.label}</span>
+        ${mapEngine==='mapbox'?'<span style="margin-left:auto;font-size:8px;color:var(--text-dim)">—</span>':''}
       </div>`).join('');
+  const lBtn  = mapEngine==='leaflet' ? ' active' : '';
+  const mbBtn = mapEngine==='mapbox'  ? ' active' : '';
+  menu.innerHTML = `
+    ${tileItems}
+    <div class="dd-divider"></div>
+    <div class="dd-divider-label">Map Engine</div>
+    <div class="dd-engine-row">
+      <button class="dd-engine-btn${lBtn}"  onclick="setMapEngine('leaflet')">Leaflet 2D</button>
+      <button class="dd-engine-btn${mbBtn}" onclick="setMapEngine('mapbox')">Mapbox 3D</button>
+    </div>`;
 }
 
 function buildMilDD(){
@@ -1437,7 +1520,8 @@ function render(){
   const activeDay=(selectedDay&&days.includes(selectedDay))?selectedDay:(days[0]||null);
   document.getElementById('news-title').textContent = activeDay ? 'NEWS STREAM · '+dayLabel(activeDay) : 'NEWS STREAM';
   renderNews(evs);
-  renderMap(evs);
+  if(mapEngine === 'mapbox') renderMapbox(evs);
+  else renderMap(evs);
 }
 
 // ── News stream ──────────────────────────────────────────────────
@@ -1493,7 +1577,8 @@ function cardClick(id){
 }
 
 // ── Map render ───────────────────────────────────────────────────
-function makeIcon(group){
+function makeIcon(group, scale){
+  scale = scale || 1.0;
   const rep=[...group].sort((a,b)=>SEV_ORD.indexOf(a.severity)-SEV_ORD.indexOf(b.severity))[0];
   const col=TYPE_COLORS[rep.type]||'#888';
   const count=group.length;
@@ -1527,18 +1612,19 @@ function makeIcon(group){
   const badge = count>1?`
     <circle cx="${20+r-2}" cy="${20-r+2}" r="8" fill="${col}" stroke="var(--bg2)" stroke-width="1.5" opacity="1"/>
     <text x="${20+r-2}" y="${20-r+2}" text-anchor="middle" dominant-baseline="central"
-      font-family="'IBM Plex Mono',monospace" font-size="9" fill="#000" font-weight="bold">${count>9?'9+':count}</text>
+      font-family="'JetBrains Mono',monospace" font-size="9" fill="#000" font-weight="bold">${count>9?'9+':count}</text>
     `:'';
 
-  const sz=40;
+  const sz = Math.round(40 * scale);
+  const mid = Math.round(sz/2);
   return L.divIcon({
-    html:`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 ${sz} ${sz}">
+    html:`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 40 40">
       ${pulse}${glow}
       <circle cx="20" cy="20" r="${r}" fill="${col}" opacity=".9"/>
       <circle cx="20" cy="20" r="${Math.max(2,r-4)}" fill="#000" opacity=".35"/>
       ${badge}
     </svg>`,
-    className:'',iconSize:[sz,sz],iconAnchor:[20,20]
+    className:'',iconSize:[sz,sz],iconAnchor:[mid,mid]
   });
 }
 
@@ -1607,6 +1693,226 @@ function renderMap(evs){
      .addTo(markerGroup);
   });
   } // end iswMarkersVisible
+}
+
+// ── Mapbox Engine ────────────────────────────────────────────────
+
+function setMapEngine(engine){
+  closeAllDD();
+  if(engine === mapEngine) return;
+  if(engine === 'mapbox'){
+    if(!mbToken){
+      // Show token prompt positioned under Map button
+      const btn  = document.getElementById('dd-map-btn');
+      const rect = btn.getBoundingClientRect();
+      const wrap = document.getElementById('mapbox-token-wrap');
+      wrap.style.left = rect.left + 'px';
+      wrap.classList.add('open');
+      document.getElementById('mapbox-token-input').focus();
+      return; // wait for token submission
+    }
+    activateMapbox();
+  } else {
+    activateLeaflet();
+  }
+}
+
+function submitMapboxToken(){
+  const val = document.getElementById('mapbox-token-input').value.trim();
+  if(!val.startsWith('pk.')){ showToast('Token must start with pk.  — check your Mapbox account',4000); return; }
+  mbToken = val;
+  document.getElementById('mapbox-token-wrap').classList.remove('open');
+  activateMapbox();
+}
+
+function activateMapbox(){
+  mapEngine = 'mapbox';
+  // Hide Leaflet, show Mapbox div
+  document.getElementById('map').classList.add('hidden');
+  document.getElementById('mapbox-map').classList.add('active');
+  buildMapDD();
+
+  if(mbMap){
+    // Already inited — just re-render
+    renderMapbox(getFiltered());
+    return;
+  }
+
+  // Lazy-load Mapbox GL JS
+  if(!window.mapboxgl){
+    // CSS
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css';
+    document.head.appendChild(link);
+    // JS
+    const script = document.createElement('script');
+    script.src = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js';
+    script.onload = () => initMapbox();
+    document.head.appendChild(script);
+  } else {
+    initMapbox();
+  }
+}
+
+function activateLeaflet(){
+  mapEngine = 'leaflet';
+  document.getElementById('map').classList.remove('hidden');
+  document.getElementById('mapbox-map').classList.remove('active');
+  clearMapboxMarkers();
+  buildMapDD();
+  // Leaflet needs a size refresh after being hidden
+  setTimeout(()=>{ if(map) map.invalidateSize(); }, 50);
+  renderMap(getFiltered());
+}
+
+function initMapbox(){
+  mapboxgl.accessToken = mbToken;
+
+  mbMap = new mapboxgl.Map({
+    container: 'mapbox-map',
+    style: 'mapbox://styles/mapbox/satellite-streets-v12',
+    center: [42, 29],
+    zoom: 5,
+    pitch: 70,
+    bearing: -20,
+    antialias: true,
+  });
+
+  mbMap.addControl(new mapboxgl.NavigationControl({visualizePitch: true}), 'bottom-right');
+
+  // style.load fires after style JSON + glyphs are ready — safe to addSource/setTerrain
+  mbMap.on('style.load', ()=>{
+
+    mbMap.addSource('mapbox-dem', {
+      type: 'raster-dem',
+      url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+      tileSize: 512,
+      maxzoom: 14,
+      encoding: 'mapbox',
+    });
+
+    // High exaggeration — at zoom 5 the Zagros/Taurus/Hejaz become dramatic ridgelines
+    mbMap.setTerrain({ source: 'mapbox-dem', exaggeration: 3.5 });
+
+    // Sky — dark atmospheric haze behind silhouetted ridges
+    mbMap.addLayer({
+      id: 'sky',
+      type: 'sky',
+      paint: {
+        'sky-type': 'atmosphere',
+        'sky-atmosphere-sun': [0.0, 80.0],
+        'sky-atmosphere-sun-intensity': 10,
+        'sky-atmosphere-color': 'rgba(15,20,30,1)',
+        'sky-atmosphere-halo-color': 'rgba(40,60,80,0.6)',
+      }
+    });
+
+    renderMapbox(getFiltered());
+  });
+
+  mbMap.on('click', ()=> closePopup());
+}
+
+function clearMapboxMarkers(){
+  mbMarkers.forEach(m => m.remove());
+  mbMarkers = [];
+}
+
+function makeMbEl(icon, scale){
+  // Wrap a Leaflet divIcon into a plain DOM element for Mapbox
+  // scale > 1 makes markers larger in 3D view (default 1.8×)
+  const s   = scale || 1.8;
+  const div = document.createElement('div');
+  div.style.cssText = 'cursor:pointer';
+  // Upscale by wrapping the SVG in a sized container
+  const [w, h] = icon.options.iconSize;
+  div.style.width  = (w * s) + 'px';
+  div.style.height = (h * s) + 'px';
+  div.innerHTML = icon.options.html.replace(
+    /width="(\d+)"\s+height="(\d+)"/,
+    `width="${Math.round(w*s)}" height="${Math.round(h*s)}"`
+  );
+  return div;
+}
+
+function renderMapbox(evs){
+  if(!mbMap) return;
+  clearMapboxMarkers();
+
+  const GRID = 0.15;
+  const gridKey = (lat,lng) => `${(lat/GRID).toFixed(0)},${(lng/GRID).toFixed(0)}`;
+
+  // ── RSS circles ──────────────────────────────────────────────
+  const groups = {};
+  evs.forEach(e=>{
+    if(!e.lat||!e.lng) return;
+    const k = gridKey(e.lat,e.lng);
+    if(!groups[k]) groups[k]=[];
+    groups[k].push(e);
+  });
+  const rssOccupied = new Set(Object.keys(groups));
+
+  Object.values(groups).forEach(grp=>{
+    const rep = [...grp].sort((a,b)=>SEV_ORD.indexOf(a.severity)-SEV_ORD.indexOf(b.severity))[0];
+    const el  = makeMbEl(makeIcon(grp), 1.8);
+    el.addEventListener('click', ev=>{
+      ev.stopPropagation();
+      const sorted = [...grp].sort((a,b)=>SEV_ORD.indexOf(a.severity)-SEV_ORD.indexOf(b.severity));
+      const pt = mbMap.project([rep.lng, rep.lat]);
+      openPopup(sorted, 0, {x: pt.x, y: pt.y});
+    });
+    const m = new mapboxgl.Marker({element:el, anchor:'center'})
+      .setLngLat([rep.lng, rep.lat])
+      .addTo(mbMap);
+    mbMarkers.push(m);
+  });
+
+  // ── ISW diamonds ─────────────────────────────────────────────
+  if(iswMarkersVisible){
+    const ISW_LAT_OFF = 0.07, ISW_LNG_OFF = 0.10;
+    const iswGroups = {};
+    getISWFiltered().forEach(e=>{
+      if(!e.lat||!e.lng) return;
+      const k = gridKey(e.lat,e.lng);
+      if(!iswGroups[k]) iswGroups[k]=[];
+      iswGroups[k].push(e);
+    });
+    Object.values(iswGroups).forEach(grp=>{
+      const rep   = [...grp].sort((a,b)=>SEV_ORD.indexOf(a.severity)-SEV_ORD.indexOf(b.severity))[0];
+      const clash = rssOccupied.has(gridKey(rep.lat,rep.lng));
+      const plat  = rep.lat + (clash ? ISW_LAT_OFF : 0);
+      const plng  = rep.lng + (clash ? ISW_LNG_OFF : 0);
+      const el    = makeMbEl(makeISWIcon(grp), 1.8);
+      el.addEventListener('click', ev=>{
+        ev.stopPropagation();
+        const sorted = [...grp].sort((a,b)=>SEV_ORD.indexOf(a.severity)-SEV_ORD.indexOf(b.severity));
+        const pt = mbMap.project([plng, plat]);
+        openPopup(sorted, 0, {x: pt.x, y: pt.y});
+      });
+      const m = new mapboxgl.Marker({element:el, anchor:'center'})
+        .setLngLat([plng, plat])
+        .addTo(mbMap);
+      mbMarkers.push(m);
+    });
+  }
+
+  // ── Mil sites ────────────────────────────────────────────────
+  if(mapOverlays.mil?.on){
+    MIL_SITES.forEach(site=>{
+      const el = makeMbEl(makeMilIcon(site), 2.2);
+      const col = MIL_COLORS[site.cat] || '#2a3a4a';
+      el.addEventListener('click', ev=>{
+        ev.stopPropagation();
+        // Simple inline tooltip for mil sites
+        showToast(`${site.n} · ${site.cat.toUpperCase()}`, 3000);
+      });
+      const m = new mapboxgl.Marker({element:el, anchor:'center'})
+        .setLngLat([site.lng, site.lat])
+        .addTo(mbMap);
+      mbMarkers.push(m);
+    });
+  }
 }
 
 // ── Popup ────────────────────────────────────────────────────────
