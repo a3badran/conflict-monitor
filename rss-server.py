@@ -72,18 +72,7 @@ FEEDS = [
         "region":      "ME",
         "bias":        "israeli",
     },
-    {
-        "name":        "The National",
-        "urls":        [
-            "https://www.thenationalnews.com/arc/outboundfeeds/rss/?hierarchy=mena",
-            "https://www.thenationalnews.com/news/mena/?outputType=rss",
-            "https://www.thenationalnews.com/news/mena/rss.xml",
-            "https://www.thenationalnews.com/rss.xml",
-        ],
-        "credibility": 3,
-        "region":      "ME",
-        "bias":        "gulf-state",
-    },
+
     {
         "name":        "Reuters",
         "urls":        [
@@ -105,6 +94,24 @@ FEEDS = [
         "region":      "ME",
         "bias":        "neutral-West",
         "gnews":       True,
+    },
+    # ── IRNA English (Islamic Republic News Agency — Iranian state media) ──────
+    # Official Iranian government wire. Direct domain unreachable during active strikes.
+    # Google News proxy indexes IRNA articles reliably from cached copies.
+    {
+        "name":          "IRNA",
+        "urls":          [
+            "https://news.google.com/rss/search?q=site:irna.ir+Iran+military+OR+nuclear+OR+sanctions&hl=en-US&gl=US&ceid=US:en",
+            "https://news.google.com/rss/search?q=IRNA+Iran+Middle+East+attack+OR+strike+OR+missile&hl=en-US&gl=US&ceid=US:en",
+            "https://en.irna.ir/rss",
+            "https://en.irna.ir/rss.xml",
+        ],
+        "credibility":   3,
+        "region":        "ME",
+        "bias":          "iranian-state",
+        "gnews":         True,
+        "optional":      True,
+        "domain_filter": ["irna.ir"],
     },
 ]
 
@@ -308,7 +315,29 @@ GAZETTEER = {
     "Imam Ali airbase":     ("IR", 30.700,  48.800, "site"),
     "Khatam al-Anbiya":     ("IR", 35.694,  51.421, "site"),   # IRGC air HQ
     "Abuzar":               ("IR", 30.440,  49.687, "site"),
+    # IRNA-relevant Persian Gulf islands & ports (appear in naval/sanctions stories)
+    "Kharg Island":         ("IR", 29.238,  50.324, "site"),
+    "Lavan Island":         ("IR", 26.807,  53.349, "site"),
+    "Sirri Island":         ("IR", 25.900,  54.536, "site"),
+    "Abu Musa":             ("IR", 25.877,  55.034, "site"),
+    "Bandar Imam Khomeini": ("IR", 30.447,  49.077, "site"),
+    "Bandar Mahshahr":      ("IR", 30.557,  49.198, "site"),
+    "Chabahar":             ("IR", 25.292,  60.643, "city"),
+    "Zahedan":              ("IR", 29.497,  60.862, "city"),
+    "Kermanshah":           ("IR", 34.314,  47.065, "city"),
+    "Khorramabad":          ("IR", 33.488,  48.356, "city"),
+    "Ilam":                 ("IR", 33.637,  46.422, "city"),
+    "Arak":                 ("IR", 34.094,  49.689, "city"),   # heavy water reactor
+    "Fordow":               ("IR", 34.882,  50.569, "site"),   # enrichment site
+    "Parchin":              ("IR", 35.525,  51.777, "site"),   # military complex
+    "Strait of Hormuz":     ("IR", 26.567,  56.250, "water"),
+    "Gulf of Oman":         ("IR", 24.000,  58.500, "water"),
     "Iran":                 ("IR", 32.427,  53.688, "country"),
+    "Iranian":              ("IR", 32.427,  53.688, "country"),  # IRNA self-reference
+    "Islamic Republic":     ("IR", 32.427,  53.688, "country"),  # IRNA formal name
+    "IRGC":                 ("IR", 32.427,  53.688, "country"),  # Islamic Rev. Guard Corps
+    "Supreme Leader":       ("IR", 35.694,  51.421, "city"),     # always Tehran
+    "Persian Gulf":         ("IR", 27.000,  52.000, "water"),    # IRNA/regional coverage
 
     # ── Iraq ──────────────────────────────────────────────────────────────────
     # US bases / key sites
@@ -351,6 +380,18 @@ GAZETTEER = {
     "Diwaniyah":            ("IQ", 31.991,  44.924, "city"),
     "Hillah":               ("IQ", 32.474,  44.422, "city"),
     # Provinces / regions
+    # Western Anbar / CENTCOM ISIS op hotspots
+    "Rawa":                 ("IQ", 34.478,  41.906, "city"),
+    "Haditha":              ("IQ", 34.131,  42.381, "city"),
+    "Hit":                  ("IQ", 33.645,  42.827, "city"),
+    "al-Qa'im":             ("IQ", 34.386,  41.074, "city"),
+    "Al Qa'im":             ("IQ", 34.386,  41.074, "city"),
+    "Qaim":                 ("IQ", 34.386,  41.074, "city"),
+    "Tal Afar":             ("IQ", 36.378,  42.449, "city"),
+    "Qayyarah":             ("IQ", 35.826,  43.124, "city"),
+    "Makhmur":              ("IQ", 35.771,  43.591, "city"),
+    "Tuz Khurmatu":         ("IQ", 34.881,  44.634, "city"),
+    "Al Anbar":             ("IQ", 32.560,  41.890, "region"),
     "Salah al-Din":         ("IQ", 34.200,  43.700, "region"),
     "Salah ad-Din":         ("IQ", 34.200,  43.700, "region"),
     "Anbar":                ("IQ", 32.560,  41.890, "region"),
@@ -453,6 +494,29 @@ GAZETTEER = {
     "Arabian Sea":          ("YE", 15.000,  65.000, "water"),
     "Gulf of Suez":         ("EG", 29.500,  32.700, "water"),
     "Mediterranean":        ("IL", 33.000,  28.000, "water"),
+
+    # ── Actor / proxy terms (resolve to their primary operating zone) ─────────
+    # These catch headlines that name an actor without a city
+    "Hezbollah":            ("LB", 33.400,  35.500, "region"),
+    "Houthi":               ("YE", 15.369,  44.191, "region"),
+    "Houthis":              ("YE", 15.369,  44.191, "region"),
+    "Ansarallah":           ("YE", 15.369,  44.191, "region"),
+    "Hamas":                ("PS", 31.417,  34.313, "region"),
+    "Islamic Jihad":        ("PS", 31.417,  34.313, "region"),
+    "IRGC":                 ("IR", 35.694,  51.421, "region"),
+    "Quds Force":           ("IR", 35.730,  51.300, "region"),
+    "PMF":                  ("IQ", 33.340,  44.400, "region"),
+    "Popular Mobilization": ("IQ", 33.340,  44.400, "region"),
+    "PKK":                  ("IQ", 36.500,  44.500, "region"),
+
+    # ── Border / frontier terms ───────────────────────────────────────────────
+    "Lebanese border":      ("LB", 33.272,  35.203, "region"),
+    "Syrian border":        ("SY", 33.500,  36.000, "region"),
+    "Iraqi border":         ("IQ", 33.223,  43.679, "region"),
+    "Iranian border":       ("IR", 35.000,  46.000, "region"),
+    "Gaza border":          ("PS", 31.287,  34.245, "region"),
+    "Israel-Lebanon border":("LB", 33.100,  35.400, "region"),
+    "Israel-Gaza border":   ("PS", 31.320,  34.280, "region"),
 }
 
 # Specificity ranking — higher wins over lower
@@ -576,13 +640,35 @@ def severity_from_text(title, desc):
     if any(w in text for w in ["dozens killed","hundreds killed","mass casualt","massacre",
                                  "major offensive","heavy bombardment","widespread",
                                  "multiple strikes","several strikes","destroyed.*headquarters",
-                                 "assassinat","supreme leader"]):
+                                 "assassinat","supreme leader",
+                                 # CENTCOM language
+                                 "large-scale strikes","precision airstrike","70 targets","operation hawkeye",
+                                 "operation epic fury","killed isis","eliminated isis",
+                                 # Israeli/conflict language
+                                 "broad wave of strikes","eliminated the commander","eliminated senior",
+                                 "neutralized","direct hit on","struck and destroyed","infrastructure of",
+                                 # Tasnim / IRGC language
+                                 "martyred","martyrdom","mass protest","crackdown","suppressed uprising",
+                                 "hit the carrier","struck the carrier","hypersonic"]):
         return "critical"
     if any(w in text for w in ["killed","dead","deaths","casualt","wounded","injured","strikes",
-                                 "destroyed","degraded","suppressed","eliminated","struck"]):
+                                 "destroyed","degraded","suppressed","eliminated","struck",
+                                 # CENTCOM
+                                 "airstrike","operatives killed","forces struck","isis operatives",
+                                 # Israeli/conflict language
+                                 "idf forces","troops entered","idf struck","rocket fire","anti-tank",
+                                 "drone strike","precision strike","eliminated terrorist",
+                                 # IRNA/Tasnim
+                                 "resistance forces","islamic resistance","retaliation","retaliatory",
+                                 "seized","intercepted","vessel seized","warship",
+                                 "ballistic missile","cruise missile","drone swarm"]):
         return "high"
     if any(w in text for w in ["attack","clash","fire","launched","arrest","detained",
-                                 "targeted","damaged","disrupted","assessed","continued"]):
+                                 "targeted","damaged","disrupted","assessed","continued",
+                                 # CENTCOM
+                                 "enabled by","partner forces","in the vicinity of",
+                                 # IRNA
+                                 "sanctions","nuclear talks","negotiations","drills","exercise"]):
         return "medium"
     return "low"
 
@@ -645,15 +731,21 @@ def fetch_feed(feed):
                         link = g("guid")
                     # 2. Strip trailing source attribution Google appends to titles
                     #    e.g. "Israel strikes Tehran - Reuters" or "Gaza ceasefire | AP"
+                    #    Also handles "... > U.S. Central Command" CENTCOM suffix
                     title = re.sub(r'\s*[-–|]\s*(Reuters|AP News|AP|Associated Press)\s*$', '', title, flags=re.IGNORECASE).strip()
-                    # 3. Use <source> element text as display name if available
-                    src_el = item.find("source")
-                    source_name = feed["name"]  # default to feed name
-                    if src_el is not None and src_el.text:
-                        sn = src_el.text.strip()
-                        # Only override if it matches expected outlet (avoid noise)
-                        if feed["name"].lower() in sn.lower() or sn.lower() in feed["name"].lower():
-                            source_name = feed["name"]
+                    title = re.sub(r'\s*>\s*U\.S\. Central Command\s*$', '', title, flags=re.IGNORECASE).strip()
+
+                    # 3. Source name: always use feed["name"] for gnews feeds.
+                    source_name = feed["name"]
+                    # 4. domain_filter: only applied on non-site: queries.
+                    #    site: queries wrap links as news.google.com redirects,
+                    #    so a domain check on the link will always fail falsely.
+                    domain_filter = feed.get("domain_filter")
+                    is_site_query = "site:" in url
+                    if domain_filter and link and not is_site_query:
+                        check_url = link + " " + (g("guid") or "")
+                        if not any(d in check_url for d in domain_filter):
+                            continue  # skip — article is from a different outlet
                 else:
                     link = g("link") or g("guid")
                     source_name = feed["name"]
@@ -664,17 +756,18 @@ def fetch_feed(feed):
                         "pub": pub, "categories": cats, "thumb": thumb,
                         "source": source_name, "credibility": feed["credibility"],
                         "region": feed["region"],
+                        "military": feed.get("military", False),
                     })
             log.info("  %s: %d items (via %s)", feed["name"], len(results), url)
             return results
         except Exception as e:
             last_err = e
-            log.debug("  %s candidate %s failed: %s", feed["name"], url, e)
+            log.info("  %s candidate failed: %s", feed["name"], str(e)[:80])
             continue
 
     # All URLs failed
     if feed.get("optional"):
-        log.debug("Optional feed %s unavailable: %s", feed["name"], last_err)
+        log.info("  [optional] %s: all %d URLs failed — %s", feed["name"], len(urls), str(last_err)[:80])
     else:
         log.warning("Feed %s: all URLs failed. Last error: %s", feed["name"], last_err)
     return []
@@ -718,6 +811,7 @@ def process_article(a):
         "lat":         lat,
         "lng":         lng,
         "severity":    sev,
+        "military":    a.get("military", False),
     }
 
 # ── Seen URL cache ────────────────────────────────────────────────────────────
@@ -1072,7 +1166,9 @@ def fetch_isw():
     return all_events
 
 
+
 # ── Poll cycle ────────────────────────────────────────────────────────────────
+
 def poll_cycle():
     log.info("─── Fetching RSS feeds ───")
     seen     = load_seen()
@@ -1083,16 +1179,32 @@ def poll_cycle():
         all_raw.extend(fetch_feed(feed))
 
     new_raw = [a for a in all_raw if a["url"] not in seen]
-    log.info("New articles: %d / %d", len(new_raw), len(all_raw))
+    log.info("New articles: %d / %d total | %d new",
+             len(all_raw), len(all_raw), len(new_raw))
+
+    # Per-source breakdown
+    from collections import Counter
+    src_counts = Counter(a["source"] for a in all_raw)
+    src_new    = Counter(a["source"] for a in new_raw)
+    for src, total in sorted(src_counts.items()):
+        log.info("  %-20s total=%-4d  new=%d", src, total, src_new.get(src, 0))
 
     new_events = []
+    geo_misses = Counter()  # track which sources lose items to gazetteer
     for a in new_raw:
         seen.add(a["url"])
         ev = process_article(a)
         if ev:
             new_events.append(ev)
+        else:
+            geo_misses[a["source"]] += 1
 
-    log.info("ME-relevant events: %d", len(new_events))
+    if geo_misses:
+        log.info("Gazetteer misses: %s", dict(geo_misses))
+
+    # Per-source events produced
+    ev_counts = Counter(e["source"] for e in new_events)
+    log.info("ME-relevant events: %d  →  %s", len(new_events), dict(ev_counts))
 
     # Merge with existing, sort by pub desc, cap at MAX_ITEMS
     merged = new_events + existing
@@ -1161,7 +1273,17 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control","no-cache")
 
 def main():
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--reset-seen", action="store_true",
+                    help="Clear seen-URL cache so all current feed items are reprocessed")
+    args = ap.parse_args()
+
     DATA_DIR.mkdir(exist_ok=True)
+    if args.reset_seen:
+        if SEEN_FILE.exists():
+            SEEN_FILE.unlink()
+            log.info("Cleared seen-URL cache — all feed items will be reprocessed")
     # Initial fetch on startup
     threading.Thread(target=poll_cycle, daemon=True).start()
     server = HTTPServer(("localhost", PORT), Handler)
@@ -1169,7 +1291,12 @@ def main():
     log.info("  GET /latest.json  — all ME events")
     log.info("  GET /refresh      — manual refresh trigger")
     log.info("  GET /status       — feed status")
-    log.info("  Feeds: %s", ", ".join(f["name"] for f in FEEDS))
+    required = [f["name"] for f in FEEDS if not f.get("optional")]
+    optional = [f["name"] for f in FEEDS if f.get("optional")]
+    log.info("  Feeds (required): %s", ", ".join(required))
+    if optional:
+        log.info("  Feeds (optional): %s", ", ".join(optional))
+    log.info("  + ISW (CriticalThreats scraper)")
     try: server.serve_forever()
     except KeyboardInterrupt: log.info("Stopped.")
 

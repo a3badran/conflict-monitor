@@ -16,6 +16,7 @@
   --border:#1e2d3d;--border2:#243447;
   --amber:#f0a500;--amber-dim:#7a5200;
   --green:#3ce084;--blue:#3ca8e0;
+  --mil:#7ecbff;--mil-dim:#1a3a5a;  /* military intel source accent */
   --text:#c8d8e8;--text-dim:#4a6070;--text-mid:#7a9ab0;
   --mono:'JetBrains Mono',monospace;
   --cond:'Oxanium',sans-serif;
@@ -217,6 +218,9 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 .art-source.c5{border-color:var(--green);color:var(--green)}
 .art-source.c4{border-color:#7aaa7a;color:#7aaa7a}
 .art-source.c3{border-color:var(--amber-dim);color:var(--amber)}
+.art-source.c2{border-color:#5a3a2a;color:#c07050}
+/* Military intel source override — cold steel blue regardless of credibility */
+.art-source.mil{border-color:var(--mil-dim);color:var(--mil);background:rgba(30,60,90,0.25)}
 .art-type{font-size:9px;padding:1px 4px;text-transform:uppercase;letter-spacing:.05em}
 .art-time{font-size:9px;color:var(--text-dim);margin-left:auto}
 .art-title{
@@ -267,6 +271,8 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 #popup-source-tag.c5{border-color:var(--green);color:var(--green)}
 #popup-source-tag.c4{border-color:#7aaa7a;color:#7aaa7a}
 #popup-source-tag.c3{border-color:var(--amber-dim);color:var(--amber)}
+#popup-source-tag.c2{border-color:#5a3a2a;color:#c07050}
+#popup-source-tag.mil{border-color:var(--mil-dim);color:var(--mil);background:rgba(30,60,90,0.25)}
 #popup-type-tag{font-size:9px;padding:2px 6px;text-transform:uppercase;letter-spacing:.06em}
 #popup-time-tag{font-size:9px;color:var(--text-dim);margin-left:auto}
 #popup-title{
@@ -664,10 +670,14 @@ const TYPE_COLORS = {
 };
 const CRED = {
   'Al Jazeera':4, 'BBC Middle East':5,
-  'Times of Israel':4, 'Haaretz':4, 'The National':3,
+  'Times of Israel':4, 'Haaretz':4,
   'Reuters': 5, 'AP News': 5,
+  'IRNA': 3,
+  // Military intel sources
   'ISW': 5,
 };
+// Sources that are military/official intel — get steel-blue badge, appear in Military dropdown
+const MIL_SOURCES = new Set(); // no live military RSS feeds currently
 const SEV_ORD = ['critical','high','medium','low'];
 
 // ISW state
@@ -678,6 +688,7 @@ let selectedISWDay = null;  // null = latest day
 // State
 let allEvents  = [];
 let selSources = new Set();
+let selMilSources = new Set([...MIL_SOURCES]);
 let selTypes   = new Set();
 let selSevs    = new Set(['critical','high','medium']);
 let selectedDay = null; // null = latest day
@@ -734,7 +745,7 @@ function initMap(){
 
   L.control.zoom({position:'bottomright'}).addTo(map);
   markerGroup = L.layerGroup([], {pane:'markersPane'}).addTo(map);
-  map.setView([29,42],4);
+  map.setView([28, 43], 5);
   map.on('click',()=>closePopup());
 
   // Mil sites — off by default, build layer ready for toggle
@@ -1312,9 +1323,15 @@ async function fetchData(){
     if(!Array.isArray(data)) throw new Error('Bad data');
     allEvents = data;
     // Init selections on first load only
-    if(selSources.size === 0) [...new Set(data.map(e=>e.source))].forEach(s=>selSources.add(s));
-    if(selTypes.size === 0)   [...new Set(data.map(e=>e.type))].forEach(t=>selTypes.add(t));
+    // Always seed newly-seen sources/types (handles IRNA appearing after first load).
+    // We only ever add — sources the user deselected stay deselected.
+    const isFirstLoad = selSources.size === 0;
+    [...new Set(data.map(e=>e.source))].forEach(s=>{ if(isFirstLoad || !selSources.has(s)) selSources.add(s); });
+    [...MIL_SOURCES].forEach(s=>selSources.add(s));
+    const isFirstTypeLoad = selTypes.size === 0;
+    [...new Set(data.map(e=>e.type))].forEach(t=>{ if(isFirstTypeLoad || !selTypes.has(t)) selTypes.add(t); });
     buildSourceDD();
+    buildMilDD();
     buildTypeDD();
     buildDayPicker(allEvents);
     render();
@@ -1339,25 +1356,36 @@ async function fetchData(){
 
 
 function buildSourceDD(){
-  const sources = [...new Set(allEvents.map(e=>e.source))];
-  const credColors = {5:'var(--green)', 4:'#7aaa7a', 3:'var(--amber)'};
+  const allSources  = [...new Set(allEvents.map(e=>e.source))];
+  const newsSources = allSources.filter(s => !MIL_SOURCES.has(s));
+  const milSources  = allSources.filter(s =>  MIL_SOURCES.has(s));
+  const credColors  = {5:'var(--green)', 4:'#7aaa7a', 3:'var(--amber)', 2:'#c07050'};
   const menu = document.getElementById('dd-source-menu');
+
+  const renderItem = (s, isMil) => {
+    const on  = selSources.has(s);
+    const dots = isMil
+      ? `<span style="font-size:8px;color:var(--mil)">◆</span>`
+      : `<span style="font-size:8px;color:${credColors[CRED[s]||3]}">${'●'.repeat(CRED[s]||3)}</span>`;
+    return `<div class="dd-item ${on?'on':''}" data-key="${s}"
+                 onclick="event.stopPropagation();doToggleSource('${s}')">
+      <div class="dd-check">${on?'✓':''}</div>
+      <span>${s}</span>
+      <span style="margin-left:auto">${dots}</span>
+    </div>`;
+  };
+
   menu.innerHTML =
     `<div class="dd-action">
       <span onclick="event.stopPropagation();selAllSrc(true)">ALL</span>
       <span onclick="event.stopPropagation();selAllSrc(false)">NONE</span>
     </div><div class="dd-divider"></div>` +
-    sources.map(s => {
-      const on  = selSources.has(s);
-      const col = credColors[CRED[s]||3];
-      return `<div class="dd-item ${on?'on':''}" data-key="${s}"
-                   onclick="event.stopPropagation();doToggleSource('${s}')">
-        <div class="dd-check">${on?'✓':''}</div>
-        <span>${s}</span>
-        <span style="margin-left:auto;font-size:8px;color:${col}">${'●'.repeat(CRED[s]||3)}</span>
-      </div>`;
-    }).join('');
-  updateDDBadge('source', selSources.size, sources.length);
+    (newsSources.length ? `<div style="font-size:8px;color:var(--text-dim);padding:4px 10px 2px;letter-spacing:.12em">NEWS</div>` +
+      newsSources.map(s => renderItem(s, false)).join('') : '') +
+    (milSources.length  ? `<div class="dd-divider"></div><div style="font-size:8px;color:var(--mil);padding:4px 10px 2px;letter-spacing:.12em">◆ MILITARY INTEL</div>` +
+      milSources.map(s => renderItem(s, true)).join('') : '');
+
+  updateDDBadge('source', selSources.size, allSources.length);
 }
 
 function buildTypeDD(){
@@ -1424,8 +1452,13 @@ function toggleSev(btn){
 
 function selAllSrc(v){
   selSources.clear();
-  if(v) [...new Set(allEvents.map(e=>e.source))].forEach(s=>selSources.add(s));
+  selMilSources.clear();
+  if(v){
+    [...new Set(allEvents.map(e=>e.source))].forEach(s=>selSources.add(s));
+    [...MIL_SOURCES].forEach(s=>selMilSources.add(s));
+  }
   buildSourceDD();
+  buildMilDD();
   render();
 }
 
@@ -1499,15 +1532,47 @@ function buildMilDD(){
   const menu   = document.getElementById('dd-mil-menu');
   const iswOn  = iswMarkersVisible;
   const milOn  = mapOverlays.mil?.on ?? false;
+
+  // Intel feed toggles — only show feeds that have produced events
+  const activeMilSources = [...MIL_SOURCES].filter(s =>
+    allEvents.some(e => e.source === s)
+  );
+
+  const milFeedRows = activeMilSources.map(s => {
+    const on = selMilSources.has(s);
+    const cred = CRED[s] || 3;
+    const credLabel = {5:'★★★★★',4:'★★★★☆',3:'★★★☆☆',2:'★★☆☆☆',1:'★☆☆☆☆'}[cred] || '';
+    return `<div class="dd-item${on?' on':''}" onclick="event.stopPropagation();toggleMilSource('${s}')">
+      <span class="dd-check">${on?'✓':''}</span>
+      <span style="color:var(--mil)">${s}</span>
+      <span style="margin-left:auto;font-size:8px;color:var(--text-dim)">${credLabel}</span>
+    </div>`;
+  }).join('');
+
   menu.innerHTML = `
+    <div style="font-size:8px;color:var(--mil);padding:4px 10px 2px;letter-spacing:.12em">◆ INTEL FEEDS</div>
     <div class="dd-item${iswOn?' on':''}" onclick="toggleISWMarkers();buildMilDD()">
       <span class="dd-check">${iswOn?'✓':''}</span>
-      <span>ISW events</span>
+      <span style="color:var(--mil)">ISW</span>
+      <span style="margin-left:auto;font-size:8px;color:var(--text-dim)">★★★★★</span>
     </div>
+    ${milFeedRows}
+    <div class="dd-divider"></div>
+    <div style="font-size:8px;color:var(--text-dim);padding:4px 10px 2px;letter-spacing:.12em">MAP OVERLAYS</div>
     <div class="dd-item${milOn?' on':''}" onclick="toggleOverlay('mil');buildMilDD()">
       <span class="dd-check">${milOn?'✓':''}</span>
-      <span>Mil sites</span>
+      <span>Military sites layer</span>
     </div>`;
+}
+
+function toggleMilSource(s){
+  selMilSources.has(s) ? selMilSources.delete(s) : selMilSources.add(s);
+  // Sync selSources — military sources must also be in selSources to pass filter
+  if(selMilSources.has(s)) selSources.add(s);
+  else selSources.delete(s);
+  buildMilDD();
+  buildSourceDD();
+  render();
 }
 
 // ── Day helpers ──────────────────────────────────────────────────
@@ -1595,10 +1660,12 @@ function renderNews(evs){
   list.innerHTML=evs.map(e=>{
     const col=TYPE_COLORS[e.type]||'#888';
     const cred=CRED[e.source]||3;
+    const isMil = e.military || MIL_SOURCES.has(e.source);
+    const srcClass = isMil ? `art-source mil` : `art-source c${cred}`;
     return `<div class="art-card" id="card-${e.id}" onclick="cardClick('${e.id}')">
       <div class="art-sev-bar sev-${e.severity}"></div>
       <div class="art-meta">
-        <span class="art-source c${cred}">${e.source.replace(' Middle East','')}</span>
+        <span class="${srcClass}">${e.source.replace(' Middle East','')}</span>
         <span class="art-type t-${e.type}" style="background:${col}18">${e.label||e.type}</span>
         <span class="art-time">${fmtTime(e.pub)}</span>
       </div>
@@ -1822,7 +1889,7 @@ function initMapbox(){
   mbMap = new mapboxgl.Map({
     container: 'mapbox-map',
     style: 'mapbox://styles/mapbox/satellite-streets-v12',
-    center: [42, 29],
+    center: [43, 28],
     zoom: 5,
     pitch: 70,
     bearing: -20,
@@ -2037,6 +2104,9 @@ function renderPopup(){
   if(e.source==='ISW'){
     srcEl.className='';
     srcEl.style.cssText=`font-size:8px;letter-spacing:.06em;text-transform:uppercase;padding:2px 5px;border:1px solid #0bc8c8;color:#0bc8c8`;
+  } else if(e.military || MIL_SOURCES.has(e.source)){
+    srcEl.className='mil';
+    srcEl.style.cssText=`font-size:8px;letter-spacing:.06em;text-transform:uppercase;padding:2px 5px;border:1px solid`;
   } else {
     srcEl.className=`c${cred}`;
     srcEl.style.cssText=`font-size:8px;letter-spacing:.06em;text-transform:uppercase;padding:2px 5px;border:1px solid`;
