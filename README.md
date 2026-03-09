@@ -1,3 +1,11 @@
+Prerequisites
+> Must have Python3
+
+Requirements
+> pip3 install spacy
+
+> python3 -m spacy download en_core_web_sm
+
 Run the python server:
 > python3 rss-server.py
 
