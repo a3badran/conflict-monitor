@@ -19,13 +19,44 @@ from email.utils import parsedate_to_datetime
 from xml.etree import ElementTree as ET
 from html.parser import HTMLParser
 
+# ── spaCy — lazy-loaded for NER geolocation + negation-aware severity ─────────
+_nlp = None   # loaded on first use so server starts even if model not installed
+
+def _get_nlp():
+    global _nlp
+    if _nlp is not None:
+        return _nlp
+    try:
+        import spacy
+        _nlp = spacy.load("en_core_web_sm")
+        log.info("spaCy en_core_web_sm loaded — NER geolocation active")
+    except Exception as e:
+        log.warning("spaCy not available (%s) — falling back to gazetteer-only", e)
+        _nlp = False   # False = tried and failed, don't retry every article
+    return _nlp
+
+# Source credibility weights for severity adjustment
+# Iranian state sources over-use escalatory vocabulary — discount one tier
+_SOURCE_DISCOUNT = {"Mehr News", "Tehran Times", "IRNA"}
+
+# Hedging verbs that indicate unconfirmed/reported events — drop one severity tier
+_HEDGE_VERBS = {
+    "claim","claims","claimed","report","reports","reported","allege","alleges",
+    "alleged","say","says","said","suggest","suggests","suggested","warn","warns",
+    "warned","deny","denies","denied","accuse","accuses","accused",
+}
+
+# Negation tokens spaCy uses
+_NEG_DEPS = {"neg"}
+
+
 PORT        = 8766
 DATA_DIR    = Path(__file__).parent / "rss_data"
 LATEST_FILE = DATA_DIR / "latest.json"
 ISW_FILE    = DATA_DIR / "isw.json"
 STATUS_FILE = DATA_DIR / "status.json"
 SEEN_FILE   = DATA_DIR / "seen_urls.json"
-MAX_ITEMS   = 200     # keep last N articles
+RETAIN_DAYS = 7       # keep events published within this many days
 HEADERS     = {"User-Agent": "Mozilla/5.0 (compatible; ConflictMonitor/1.0)"}
 
 logging.basicConfig(
@@ -95,7 +126,39 @@ FEEDS = [
         "bias":        "neutral-West",
         "gnews":       True,
     },
-    # ── IRNA English (Islamic Republic News Agency — Iranian state media) ──────
+    # ── Mehr News Agency (MNA — Iranian gov't semi-official wire) ───────────────
+    # Highest-volume English Iranian outlet. Covers military ops in real-time.
+    # Owned by Islamic Development Organization; director appointed by Supreme Leader.
+    {
+        "name":        "Mehr News",
+        "urls":        [
+            "https://news.google.com/rss/search?q=site:en.mehrnews.com+Iran+military+OR+strike+OR+missile&hl=en-US&gl=US&ceid=US:en",
+            "https://news.google.com/rss/search?q=site:en.mehrnews.com+Middle+East+OR+Gaza+OR+Lebanon&hl=en-US&gl=US&ceid=US:en",
+            "https://en.mehrnews.com/rss",
+        ],
+        "credibility": 2,
+        "region":      "ME",
+        "bias":        "iranian-state",
+        "gnews":       True,
+        "optional":    True,
+    },
+    # ── Tehran Times (Iranian state-controlled English daily) ─────────────────
+    # Founded 1979 as "voice of the Islamic Revolution". More analytical than MNA.
+    # Run by same management as Mehr News Agency since 2002.
+    {
+        "name":        "Tehran Times",
+        "urls":        [
+            "https://news.google.com/rss/search?q=site:tehrantimes.com+Iran+military+OR+nuclear+OR+Middle+East&hl=en-US&gl=US&ceid=US:en",
+            "https://news.google.com/rss/search?q=site:tehrantimes.com+Gaza+OR+Lebanon+OR+Yemen+OR+Iraq&hl=en-US&gl=US&ceid=US:en",
+            "https://www.tehrantimes.com/rss",
+        ],
+        "credibility": 2,
+        "region":      "ME",
+        "bias":        "iranian-state",
+        "gnews":       True,
+        "optional":    True,
+    },
+        # ── IRNA English (Islamic Republic News Agency — Iranian state media) ──────
     # Official Iranian government wire. Direct domain unreachable during active strikes.
     # Google News proxy indexes IRNA articles reliably from cached copies.
     {
@@ -597,80 +660,190 @@ def classify(title, desc, categories):
 
     return best_type, best_label
 
-def extract_location(title, desc, categories):
+# ME bounding box for spaCy NER fallback: lat 10-43, lng 24-66
+_ME_LAT  = (10.0, 43.0)
+_ME_LNG  = (24.0, 66.0)
+
+def _gazetteer_lookup(title, desc, categories):
     """
-    Score all gazetteer matches across title, description, and categories.
-    Score = specificity_rank * field_weight * position_weight
-    Returns (place_name, country_iso, lat, lng) for the highest scorer, or None.
+    Original gazetteer scan — exact word-boundary match with scoring.
+    Returns (place, country, lat, lng) or None.
     """
-    # Field weights: title carries most signal
     fields = [
         (title,                    3.0),
         (desc,                     1.0),
-        (" ".join(categories),     1.5),  # RSS category tags are reliable
+        (" ".join(categories),     1.5),
     ]
-
-    best = None  # (score, place, country, lat, lng)
-
+    best = None
     for place, (country, lat, lng, ptype) in GAZETTEER_SORTED:
         pattern = re.compile(r'\b' + re.escape(place) + r'\b', re.IGNORECASE)
         spec    = SPEC_RANK.get(ptype, 1)
-
         for text, field_w in fields:
             if not text:
                 continue
             m = pattern.search(text)
             if not m:
                 continue
-            # Position weight: earlier in the field = more likely to be subject
-            # Normalise to 1.0 (start) → 0.5 (end)
             pos_w = 1.0 - 0.5 * (m.start() / max(len(text), 1))
             score = spec * field_w * pos_w
-
             if best is None or score > best[0]:
                 best = (score, place, country, lat, lng)
+    if best:
+        return best[1], best[2], best[3], best[4]
+    return None
+
+def _spacy_geo_fallback(title, desc):
+    """
+    Use spaCy NER to extract GPE/LOC entities, look them up in the gazetteer
+    by fuzzy name match, then filter to ME bounding box.
+    Falls back to country-level centroid for known ME countries.
+    """
+    nlp = _get_nlp()
+    if not nlp:
+        return None
+
+    text = f"{title} {desc}"
+    doc  = nlp(text[:512])  # cap for speed
+
+    # Collect unique GPE/LOC/FAC entities, title-case normalised
+    candidates = []
+    for ent in doc.ents:
+        if ent.label_ in ("GPE", "LOC", "FAC"):
+            candidates.append(ent.text.strip())
+
+    if not candidates:
+        return None
+
+    # Score each candidate against gazetteer (case-insensitive substring + exact)
+    best = None
+    for cand in candidates:
+        cand_l = cand.lower()
+        for place, (country, lat, lng, ptype) in GAZETTEER_SORTED:
+            if place.lower() == cand_l or cand_l in place.lower() or place.lower() in cand_l:
+                spec  = SPEC_RANK.get(ptype, 1)
+                score = spec * (2.0 if place.lower() == cand_l else 1.0)
+                if best is None or score > best[0]:
+                    best = (score, place, country, lat, lng)
 
     if best:
         _, place, country, lat, lng = best
-        return place, country, lat, lng
+        # Validate it falls within ME bounding box
+        if _ME_LAT[0] <= lat <= _ME_LAT[1] and _ME_LNG[0] <= lng <= _ME_LNG[1]:
+            return place, country, lat, lng
+
     return None
 
-def severity_from_text(title, desc):
-    text = f"{title} {desc}".lower()
-    if any(w in text for w in ["dozens killed","hundreds killed","mass casualt","massacre",
-                                 "major offensive","heavy bombardment","widespread",
-                                 "multiple strikes","several strikes","destroyed.*headquarters",
-                                 "assassinat","supreme leader",
-                                 # CENTCOM language
-                                 "large-scale strikes","precision airstrike","70 targets","operation hawkeye",
-                                 "operation epic fury","killed isis","eliminated isis",
-                                 # Israeli/conflict language
-                                 "broad wave of strikes","eliminated the commander","eliminated senior",
-                                 "neutralized","direct hit on","struck and destroyed","infrastructure of",
-                                 # Tasnim / IRGC language
-                                 "martyred","martyrdom","mass protest","crackdown","suppressed uprising",
-                                 "hit the carrier","struck the carrier","hypersonic"]):
-        return "critical"
-    if any(w in text for w in ["killed","dead","deaths","casualt","wounded","injured","strikes",
-                                 "destroyed","degraded","suppressed","eliminated","struck",
-                                 # CENTCOM
-                                 "airstrike","operatives killed","forces struck","isis operatives",
-                                 # Israeli/conflict language
-                                 "idf forces","troops entered","idf struck","rocket fire","anti-tank",
-                                 "drone strike","precision strike","eliminated terrorist",
-                                 # IRNA/Tasnim
-                                 "resistance forces","islamic resistance","retaliation","retaliatory",
-                                 "seized","intercepted","vessel seized","warship",
-                                 "ballistic missile","cruise missile","drone swarm"]):
-        return "high"
-    if any(w in text for w in ["attack","clash","fire","launched","arrest","detained",
-                                 "targeted","damaged","disrupted","assessed","continued",
-                                 # CENTCOM
-                                 "enabled by","partner forces","in the vicinity of",
-                                 # IRNA
-                                 "sanctions","nuclear talks","negotiations","drills","exercise"]):
-        return "medium"
-    return "low"
+def extract_location(title, desc, categories):
+    """
+    Two-stage location extraction:
+    1. Gazetteer exact match (fast, high precision)
+    2. spaCy NER fallback (catches place names not in gazetteer)
+    Returns (place_name, country_iso, lat, lng) or None.
+    """
+    result = _gazetteer_lookup(title, desc, categories)
+    if result:
+        return result
+    # Gazetteer missed — try spaCy NER
+    return _spacy_geo_fallback(title, desc)
+
+# Severity keyword tiers — (keywords, base_score)
+_SEV_CRITICAL_KW = {
+    "dozens killed","hundreds killed","mass casualt","massacre","major offensive",
+    "heavy bombardment","widespread destruction","multiple strikes","several strikes",
+    "assassinat","broad wave of strikes","eliminated the commander","eliminated senior",
+    "neutralized","direct hit on","struck and destroyed","large-scale strikes",
+    "hit the carrier","struck the carrier","hypersonic","thermobaric",
+    "chemical weapon","biological weapon","nuclear strike",
+}
+_SEV_HIGH_KW = {
+    "killed","dead","deaths","casualt","wounded","injured","destroyed","degraded",
+    "eliminated","airstrike","air strike","drone strike","precision strike",
+    "ballistic missile","cruise missile","drone swarm","rocket fire",
+    "anti-tank","warship","vessel seized","intercepted","seized",
+    "idf forces","troops entered","resistance forces","islamic resistance",
+    "retaliation","retaliatory","forces struck","ground offensive",
+    "martyred","martyrdom","suppressed uprising","crackdown",
+}
+_SEV_MEDIUM_KW = {
+    "attack","clash","clashes","fire","launched","arrest","detained","targeted",
+    "damaged","disrupted","sanctions","nuclear talks","negotiations","drills",
+    "exercise","mobilized","deployed","warned","threat","tension","escalat",
+    "exchange of fire","border incident","incursion","patrol",
+}
+
+def _check_negated(doc, keyword):
+    """
+    Return True if the keyword appears negated in the spaCy doc.
+    e.g. "no strikes", "did not kill", "denied killing"
+    """
+    kw_lower = keyword.lower()
+    for token in doc:
+        if kw_lower in token.text.lower():
+            # Direct negation child: "not killed"
+            if any(c.dep_ in _NEG_DEPS for c in token.children):
+                return True
+            # Negated head: "did not kill"
+            if token.head and any(c.dep_ in _NEG_DEPS for c in token.head.children):
+                return True
+    return False
+
+def _has_hedging(doc):
+    """
+    Return True if the sentence contains hedging/attribution verbs
+    indicating unconfirmed reports (drops one severity tier).
+    """
+    for token in doc:
+        if token.lemma_.lower() in _HEDGE_VERBS:
+            return True
+    return False
+
+def severity_from_text(title, desc, source=None):
+    """
+    Negation-aware, hedge-aware severity scoring.
+    1. Scan for keyword tier matches in title+desc
+    2. Use spaCy dep-parse to check if matched keywords are negated
+    3. Apply hedge penalty (drops one tier) if attribution verbs present
+    4. Apply source discount for known over-escalatory sources
+    """
+    combined = f"{title} {desc}"
+    text_l   = combined.lower()
+
+    nlp = _get_nlp()
+    doc = nlp(combined[:512]) if nlp else None
+
+    def kw_active(kw):
+        """True if keyword present AND not negated."""
+        if kw not in text_l:
+            return False
+        if doc and _check_negated(doc, kw):
+            return False
+        return True
+
+    # Determine raw tier
+    if any(kw_active(kw) for kw in _SEV_CRITICAL_KW):
+        raw = "critical"
+    elif any(kw_active(kw) for kw in _SEV_HIGH_KW):
+        raw = "high"
+    elif any(kw_active(kw) for kw in _SEV_MEDIUM_KW):
+        raw = "medium"
+    else:
+        raw = "low"
+
+    # Hedge penalty — "Iran claims it struck" → drop one tier
+    hedged = doc and _has_hedging(doc)
+
+    # Source discount — Iranian state sources use escalatory vocab as standard prose
+    discounted = source in _SOURCE_DISCOUNT if source else False
+
+    # Apply penalties (max one tier drop per factor, cap at two drops total)
+    tier_order = ["low", "medium", "high", "critical"]
+    idx = tier_order.index(raw)
+    if hedged:
+        idx = max(0, idx - 1)
+    if discounted and idx > 1:   # only discount if high or above
+        idx = max(0, idx - 1)
+
+    return tier_order[idx]
 
 # ── RSS fetcher ───────────────────────────────────────────────────────────────
 NAMESPACES = {
@@ -781,7 +954,7 @@ def process_article(a):
         return None
     place, country, lat, lng = loc
     ev_type, ev_label = classify(a["title"], a["desc"], a["categories"])
-    sev = severity_from_text(a["title"], a["desc"])
+    sev = severity_from_text(a["title"], a["desc"], source=a.get("source"))
 
     # Parse publish time
     pub_iso = ""
@@ -1113,11 +1286,11 @@ def parse_isw_html(html, url, slug, edition, date_iso):
 
 def fetch_isw():
     """
-    Try URL candidates for today and the previous 3 days (4 days total).
+    Try URL candidates for today and the previous RETAIN_DAYS-1 days.
     Returns flat list of ISW event dicts.
     """
     today = datetime.now(timezone.utc).date()
-    dates = [today - timedelta(days=i) for i in range(4)]
+    dates = [today - timedelta(days=i) for i in range(RETAIN_DAYS)]
 
     # Load existing ISW events to avoid re-fetching same slugs
     try:
@@ -1160,7 +1333,9 @@ def fetch_isw():
             merged_ids.add(e["id"])
 
     all_events.sort(key=lambda e: e.get("pub",""), reverse=True)
-    all_events = all_events[:200]   # cap at 200 assessments (~4 days × 2 updates × ~25 events)
+    # Drop ISW events older than RETAIN_DAYS
+    cutoff_isw = (datetime.now(timezone.utc) - timedelta(days=RETAIN_DAYS)).isoformat()
+    all_events = [e for e in all_events if e.get("pub","") >= cutoff_isw]
 
     ISW_FILE.write_text(json.dumps(all_events, separators=(",",":")))
     return all_events
@@ -1206,14 +1381,22 @@ def poll_cycle():
     ev_counts = Counter(e["source"] for e in new_events)
     log.info("ME-relevant events: %d  →  %s", len(new_events), dict(ev_counts))
 
-    # Merge with existing, sort by pub desc, cap at MAX_ITEMS
-    merged = new_events + existing
+    # Merge with existing, deduplicate by id, drop events older than RETAIN_DAYS
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=RETAIN_DAYS)).isoformat()
+    seen_ids = set()
+    merged = []
+    for e in new_events + existing:
+        if e["id"] in seen_ids:
+            continue
+        seen_ids.add(e["id"])
+        if e.get("pub", "") >= cutoff:
+            merged.append(e)
     merged.sort(key=lambda e: e.get("pub",""), reverse=True)
-    merged = merged[:MAX_ITEMS]
 
     LATEST_FILE.write_text(json.dumps(merged, separators=(",",":")))
     save_seen(seen)
-    log.info("✓ latest.json: %d events total", len(merged))
+    log.info("✓ latest.json: %d events across %d days (cutoff %s)",
+             len(merged), RETAIN_DAYS, cutoff[:10])
 
     # ── ISW ───────────────────────────────────────────────────────────────────
     log.info("─── Fetching ISW ───")
