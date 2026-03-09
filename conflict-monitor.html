@@ -190,20 +190,20 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 
 /* Day picker */
 #day-picker{
-  display:flex;gap:0;flex-shrink:0;
-  border-bottom:1px solid var(--border);
-  overflow-x:auto;scrollbar-width:none;
+  display:flex;gap:0;align-items:stretch;
+  border-left:1px solid var(--border);margin-left:6px;padding-left:2px;
+  overflow-x:auto;scrollbar-width:none;flex-shrink:1;
 }
 #day-picker:empty{display:none}
 #day-picker::-webkit-scrollbar{display:none}
 .day-btn{
   font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;
-  padding:5px 10px;cursor:pointer;border:none;border-right:1px solid var(--border);
-  background:var(--bg2);color:var(--text-dim);white-space:nowrap;flex-shrink:0;
-  transition:all .1s;
+  padding:0 10px;cursor:pointer;border:none;border-right:1px solid var(--border);
+  background:transparent;color:var(--text-dim);white-space:nowrap;flex-shrink:0;
+  transition:all .1s;height:100%;
 }
 .day-btn:hover{color:var(--text);background:var(--bg3)}
-.day-btn.active{background:var(--bg3);color:var(--amber);border-bottom:2px solid var(--amber)}
+.day-btn.active{background:var(--bg3);color:var(--amber);box-shadow:inset 0 -2px 0 var(--amber)}
 
 /* Article card */
 .art-card{
@@ -279,7 +279,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 #popup-source-tag.c2{border-color:#5a3a2a;color:#c07050}
 #popup-source-tag.mil{border-color:var(--mil-dim);color:var(--mil);background:rgba(30,60,90,0.25)}
 #popup-type-tag{font-size:9px;padding:2px 6px;text-transform:uppercase;letter-spacing:.06em}
-#popup-time-tag{font-size:9px;color:var(--text-dim);margin-left:auto}
+#popup-time-tag{font-size:9px;color:var(--text-dim);margin-left:auto;padding-right:22px}
 #popup-title{
   font-family:var(--cond);font-weight:700;font-size:19px;line-height:1.35;
   color:#fff;margin-bottom:8px;padding-right:20px;
@@ -338,21 +338,48 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 }
 #toast.show{opacity:1}
 
-/* ── ISW bottom strip ── */
-#isw-panel{
+/* ── Bottom strip (tabbed: INTEL / ANALYSIS) ── */
+#bottom-panel{
   flex-shrink:0;border-top:1px solid var(--border);
   background:var(--bg);
   display:flex;flex-direction:column;
   height:216px;
   transition:height .22s ease;overflow:hidden;
 }
-#isw-panel.collapsed{height:28px}
+#bottom-panel.collapsed{height:28px}
+
+/* Tab bar */
+#bottom-tab-bar{
+  display:flex;align-items:stretch;flex-shrink:0;
+  border-bottom:1px solid var(--border);
+  height:28px;
+}
+.bottom-tab{
+  font-family:var(--mono);font-size:8px;letter-spacing:.13em;text-transform:uppercase;
+  padding:0 13px;cursor:pointer;border:none;border-right:1px solid var(--border);
+  background:var(--bg);color:var(--text-dim);
+  display:flex;align-items:center;gap:6px;
+  transition:all .1s;flex-shrink:0;
+  border-bottom:2px solid transparent;
+}
+.bottom-tab:hover{color:var(--text);background:var(--bg3)}
+.bottom-tab.active{color:#0bc8c8;background:var(--bg2);border-bottom-color:#0bc8c8}
+.bottom-tab.analysis-tab.active{color:#a78bfa;border-bottom-color:#a78bfa}
+.bottom-tab-spacer{flex:1;cursor:pointer;display:flex;align-items:center;justify-content:flex-end;padding-right:10px;gap:8px}
+.bottom-tab-spacer:hover{background:var(--bg3)}
+#bottom-collapse-chevron{font-size:9px;color:var(--text-dim);transition:transform .22s}
+#bottom-panel.collapsed #bottom-collapse-chevron{transform:rotate(180deg)}
+
+/* Pane visibility */
+.bottom-pane{display:none;flex-direction:column;flex:1;overflow:hidden;min-height:0}
+.bottom-pane.active{display:flex}
+
+/* ISW pane contents (unchanged internals) */
 #isw-header{
   display:flex;align-items:center;gap:8px;
   padding:5px 12px;border-bottom:1px solid var(--border);flex-shrink:0;
-  cursor:pointer;user-select:none;height:28px;
+  height:26px;
 }
-#isw-header:hover{background:var(--bg3)}
 .isw-badge{
   font-size:7px;letter-spacing:.1em;font-family:var(--mono);
   padding:1px 5px;border:1px solid #0bc8c8;color:#0bc8c8;
@@ -362,13 +389,18 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 #isw-count{font-family:var(--cond);font-size:15px;font-weight:700;color:#0bc8c8;line-height:1}
 #isw-edition-label{font-size:8px;color:var(--text-dim);letter-spacing:.08em;text-transform:uppercase}
 #isw-chevron{font-size:9px;color:var(--text-dim);transition:transform .22s}
-#isw-panel.collapsed #isw-chevron{transform:rotate(180deg)}
 .isw-map-toggle{
   font-family:var(--mono);font-size:8px;letter-spacing:.08em;
   background:transparent;border:1px solid #0bc8c830;color:#0bc8c860;
   padding:2px 7px;cursor:pointer;transition:all .15s;flex-shrink:0;
 }
 .isw-map-toggle.active{border-color:#0bc8c8;color:#0bc8c8;background:#0bc8c815}
+.anlys-map-toggle{
+  font-family:var(--mono);font-size:8px;letter-spacing:.08em;
+  background:transparent;border:1px solid #a78bfa30;color:#a78bfa60;
+  padding:2px 7px;cursor:pointer;transition:all .15s;flex-shrink:0;
+}
+.anlys-map-toggle.active{border-color:#a78bfa;color:#a78bfa;background:#a78bfa15}
 
 /* Horizontal scrolling card list */
 #isw-list{
@@ -409,13 +441,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
   display:flex;align-items:center;white-space:nowrap;
 }
 /* ISW day picker bar */
-#isw-day-picker{
-  display:flex;gap:0;flex-shrink:0;
-  border-bottom:1px solid var(--border);
-  overflow-x:auto;scrollbar-width:none;
-}
-#isw-day-picker:empty{display:none}
-#isw-day-picker::-webkit-scrollbar{display:none}
+#isw-day-picker{display:none}
 .isw-day-btn{
   font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;
   padding:4px 10px;cursor:pointer;border:none;border-right:1px solid var(--border);
@@ -424,6 +450,9 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
 }
 .isw-day-btn:hover{color:#0bc8c8;background:var(--bg3)}
 .isw-day-btn.active{background:var(--bg3);color:#0bc8c8;border-bottom:2px solid #0bc8c8}
+.anlys-day-btn{color:var(--text-dim)}
+.anlys-day-btn:hover{color:#a78bfa;background:var(--bg3)}
+.anlys-day-btn.active{background:var(--bg3);color:#a78bfa;border-bottom:2px solid #a78bfa}
 
 /* Scroll arrow buttons inside header */
 .isw-scroll-btn{
@@ -432,9 +461,59 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
   padding:1px 7px;cursor:pointer;line-height:1;transition:all .1s;flex-shrink:0;
 }
 .isw-scroll-btn:hover:not(:disabled){border-color:#0bc8c8;color:#0bc8c8}
+#analysis-header .isw-scroll-btn:hover:not(:disabled){border-color:#a78bfa;color:#a78bfa}
 .isw-scroll-btn:disabled{opacity:.2;cursor:default}
 /* ISW popup accent */
 .isw-popup-bar{background:#0bc8c8!important}
+
+/* ── Analysis tab ── */
+#analysis-pane{padding:0;flex-direction:column}
+#analysis-header{
+  display:flex;align-items:center;gap:8px;
+  padding:4px 10px;border-bottom:1px solid var(--border);
+  flex-shrink:0;min-height:28px;
+}
+#analysis-day-picker{display:none}
+#analysis-list{
+  display:flex;flex-direction:row;
+  overflow-x:auto;overflow-y:hidden;
+  flex:1;gap:0;align-items:stretch;
+}
+#analysis-list::-webkit-scrollbar{height:3px}
+#analysis-list::-webkit-scrollbar-thumb{background:#a78bfa30}
+.anlys-card{
+  flex-shrink:0;width:260px;
+  padding:9px 12px;border-right:1px solid var(--border);
+  cursor:pointer;transition:background .08s;position:relative;
+  display:flex;flex-direction:column;justify-content:space-between;
+}
+.anlys-card:hover{background:var(--bg3)}
+.anlys-card-meta{display:flex;align-items:center;gap:5px;margin-bottom:5px;flex-wrap:wrap}
+.anlys-source-tag{
+  font-size:7px;letter-spacing:.08em;text-transform:uppercase;
+  padding:1px 5px;border:1px solid #a78bfa50;color:#a78bfa;background:#a78bfa0a;
+  flex-shrink:0;font-family:var(--mono);
+}
+.anlys-type-tag{
+  font-size:7px;letter-spacing:.06em;text-transform:uppercase;
+  padding:1px 4px;border:1px solid var(--border2);color:var(--text-dim);
+  flex-shrink:0;
+}
+.anlys-time{font-size:8px;color:var(--text-dim);margin-left:auto}
+.anlys-card-title{
+  font-family:var(--cond);font-weight:600;font-size:13px;line-height:1.35;
+  color:#c4b5fd;flex:1;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+}
+.anlys-card:hover .anlys-card-title{color:#fff}
+.anlys-card-desc{
+  font-size:10px;color:var(--text-dim);margin-top:4px;line-height:1.4;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.anlys-empty{
+  padding:0 20px;font-size:9px;color:var(--text-dim);
+  display:flex;align-items:center;white-space:nowrap;
+}
 /* Leaflet */
 /* Darken the tile layers while keeping markers/popups at full brightness */
 #map .leaflet-tile-pane{
@@ -551,6 +630,8 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
           <button class="sev-pill"         data-sev="low"      onclick="toggleSev(this)">Low</button>
         </div>
       </div>
+      <!-- Global day picker — shared by news, ISW and analysis -->
+      <div id="day-picker"></div>
     </div>
 
     <div id="topbar-right">
@@ -568,7 +649,6 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
         <span id="news-title">NEWS STREAM</span>
         <span id="news-count">─</span>
       </div>
-      <div id="day-picker"></div>
       <div id="news-list">
         <div class="news-server-hint">
           <div class="hint-label">Start the data server</div>
@@ -620,26 +700,65 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
         <div id="toast"></div>
       </div>
 
-      <!-- ISW intel assessments — horizontal bottom strip -->
-      <div id="isw-panel">
-        <div id="isw-header" onclick="toggleISWPanel()">
-          <span class="isw-badge">ISW</span>
-          <span onclick="event.stopPropagation()" style="display:flex;align-items:center">
-            <button class="isw-map-toggle" id="isw-map-toggle" onclick="toggleISWMarkers()" title="Plot ISW events on map">⬡ ISW</button>
-          </span>
-          <span id="isw-title">INTEL ASSESSMENTS</span>
-          <span id="isw-count">─</span>
-          <span id="isw-chevron" style="margin-left:6px">▾</span>
-          <span onclick="event.stopPropagation()" style="display:flex;gap:4px;margin-left:10px">
-            <button class="isw-scroll-btn" id="isw-scroll-left"  onclick="scrollISW(-1)" disabled>◀</button>
-            <button class="isw-scroll-btn" id="isw-scroll-right" onclick="scrollISW(+1)">▶</button>
-          </span>
+      <!-- Bottom tabbed strip: INTEL ASSESSMENTS / THINK-TANK ANALYSIS -->
+      <div id="bottom-panel">
+
+        <!-- Tab bar -->
+        <div id="bottom-tab-bar">
+          <button class="bottom-tab" id="tab-intel" onclick="switchBottomTab('intel')">
+            <span class="isw-badge" style="pointer-events:none">ISW</span>
+            INTEL
+            <span id="isw-count" style="font-family:var(--cond);font-size:13px;font-weight:700;color:#0bc8c8;line-height:1">─</span>
+          </button>
+          <button class="bottom-tab analysis-tab active" id="tab-analysis" onclick="switchBottomTab('analysis')">
+            <span class="isw-badge" style="pointer-events:none;border-color:#a78bfa;color:#a78bfa;letter-spacing:.04em">THINK TANK</span>
+            ANALYSIS
+            <span id="anlys-count" style="font-family:var(--cond);font-size:13px;font-weight:700;color:#a78bfa;line-height:1">─</span>
+          </button>
+          <!-- spacer / collapse -->
+          <div class="bottom-tab-spacer" onclick="toggleBottomPanel()">
+            <span id="bottom-collapse-chevron">▾</span>
+          </div>
         </div>
-        <div id="isw-day-picker"></div>
-        <div id="isw-list">
-          <div class="isw-empty">Click ↻ REFRESH to load ISW assessments</div>
+
+        <!-- INTEL pane -->
+        <div class="bottom-pane" id="intel-pane">
+          <div id="isw-header">
+            <span onclick="event.stopPropagation()" style="display:flex;align-items:center">
+              <button class="isw-map-toggle" id="isw-map-toggle" onclick="toggleISWMarkers()" title="Plot ISW events on map">⬡ ISW</button>
+            </span>
+            <span id="isw-title" style="font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:#0bc8c8">INTEL</span>
+            <div id="isw-day-picker"></div>
+            <span id="isw-edition-label" style="font-size:8px;color:var(--text-dim);letter-spacing:.08em;text-transform:uppercase"></span>
+            <span style="display:flex;gap:4px;margin-left:6px">
+              <button class="isw-scroll-btn" id="isw-scroll-left"  onclick="scrollISW(-1)" disabled>◀</button>
+              <button class="isw-scroll-btn" id="isw-scroll-right" onclick="scrollISW(+1)">▶</button>
+            </span>
+          </div>
+          <div id="isw-list">
+            <div class="isw-empty">Click ↻ REFRESH to load ISW assessments</div>
+          </div>
         </div>
-      </div>
+
+        <!-- ANALYSIS pane -->
+        <div class="bottom-pane active" id="analysis-pane">
+          <div id="analysis-header">
+            <span onclick="event.stopPropagation()" style="display:flex;align-items:center">
+              <button class="anlys-map-toggle" id="anlys-map-toggle" onclick="toggleAnalysisMarkers()" title="Plot think-tank analysis on map">■ MAP</button>
+            </span>
+            <span style="font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:#a78bfa">ANALYSIS</span>
+            <div id="analysis-day-picker"></div>
+            <span style="display:flex;gap:4px;margin-left:6px">
+              <button class="isw-scroll-btn" onclick="scrollAnalysis(-1)">◀</button>
+              <button class="isw-scroll-btn" onclick="scrollAnalysis(+1)">▶</button>
+            </span>
+          </div>
+          <div id="analysis-list">
+            <div class="anlys-empty">Click ↻ REFRESH to load think-tank analysis</div>
+          </div>
+        </div>
+
+      </div><!-- /bottom-panel -->
 
     </div><!-- /right-col -->
 
@@ -674,6 +793,15 @@ const TYPE_COLORS = {
   logistics: '#808e9b',   // slate          — blockade / sanctions
 };
 
+
+// Per-source colours for think-tank analysis map markers
+const ANLYS_COLORS = {
+  'Chatham House':      '#2dd4bf',  // teal
+  'Carnegie Endowment': '#818cf8',  // indigo
+  'Crisis Group':       '#fb923c',  // orange
+};
+const ANLYS_COLORS_DEFAULT = '#a78bfa';  // violet fallback
+
 // Human-readable labels for types (mirrors server TYPE_RULES labels)
 const TYPE_LABELS = {
   airstrike: 'Airstrike',
@@ -697,6 +825,9 @@ const CRED = {
   'Mehr News': 2, 'Tehran Times': 2, 'IRNA': 3,
   // Military intel sources
   'ISW': 5,
+  // Think-tank analysis sources
+  'Chatham House':5, 'Carnegie Endowment':5, 'Crisis Group':5,
+  'War on the Rocks':4, 'Foreign Policy':4,
 };
 // Sources that are military/official intel — get steel-blue badge, appear in Military dropdown
 const MIL_SOURCES = new Set(); // no live military RSS feeds currently
@@ -704,8 +835,25 @@ const SEV_ORD = ['critical','high','medium','low'];
 
 // ISW state
 let allISW       = [];
-let iswCollapsed = false;
-let selectedISWDay = null;  // null = latest day
+let allAnalysis  = [];
+let bottomCollapsed = false;
+let activeBottomTab = 'analysis'; // default tab
+
+function toggleBottomPanel(){
+  bottomCollapsed = !bottomCollapsed;
+  document.getElementById('bottom-panel').classList.toggle('collapsed', bottomCollapsed);
+  setTimeout(()=>{ if(map) map.invalidateSize(); }, 250);
+}
+
+function switchBottomTab(tab){
+  activeBottomTab = tab;
+  document.getElementById('tab-intel').classList.toggle('active', tab==='intel');
+  document.getElementById('tab-analysis').classList.toggle('active', tab==='analysis');
+  document.getElementById('intel-pane').classList.toggle('active', tab==='intel');
+  document.getElementById('analysis-pane').classList.toggle('active', tab==='analysis');
+  if(bottomCollapsed) toggleBottomPanel();
+}
+// selectedISWDay and selectedDay are unified into selectedDay
 
 // State
 let allEvents  = [];
@@ -780,11 +928,7 @@ function initMap(){
 }
 
 // ── ISW ──────────────────────────────────────────────────────────
-function toggleISWPanel(){
-  iswCollapsed = !iswCollapsed;
-  document.getElementById('isw-panel').classList.toggle('collapsed', iswCollapsed);
-  setTimeout(()=>{ if(map) map.invalidateSize(); }, 250);
-}
+// toggleISWPanel removed — replaced by toggleBottomPanel
 
 function scrollISW(dir){
   const list = document.getElementById('isw-list');
@@ -808,29 +952,15 @@ function getISWAvailableDays(){
 
 function getISWFiltered(){
   const days = getISWAvailableDays();
-  const activeDay = (selectedISWDay && days.includes(selectedISWDay))
-    ? selectedISWDay : (days[0]||null);
+  const activeDay = (selectedDay && days.includes(selectedDay))
+    ? selectedDay : (days[0]||null);
   if(!activeDay) return allISW;
   return allISW.filter(e=>eventDateKey(e)===activeDay);
 }
 
-function buildISWDayPicker(){
-  const days   = getISWAvailableDays();
-  const picker = document.getElementById('isw-day-picker');
-  if(days.length <= 1){ picker.innerHTML=''; return; }
-  if(!selectedISWDay || !days.includes(selectedISWDay)) selectedISWDay = days[0];
-  picker.innerHTML = days.map(d=>
-    `<button class="isw-day-btn${d===selectedISWDay?' active':''}"
-             onclick="selectISWDay('${d}')">${dayLabel(d)}</button>`
-  ).join('');
-}
+function buildISWDayPicker(){ /* unified into global day picker */ }
 
-function selectISWDay(d){
-  selectedISWDay = d;
-  buildISWDayPicker();
-  buildISWPanel();
-  renderMap(getFiltered());
-}
+function selectISWDay(d){ selectDay(d); }
 
 async function fetchISW(){
   try{
@@ -839,13 +969,141 @@ async function fetchISW(){
     const data = await r.json();
     if(!Array.isArray(data)) return;
     allISW = data;
-    buildISWDayPicker();
+    buildDayPicker(allEvents);  // add ISW days to global picker
     buildISWPanel();
     if(map) map.invalidateSize();
     renderMap(getFiltered());
   }catch(e){
     console.warn('ISW fetch:', e.message);
   }
+}
+
+// ── Helper: safe HTML escape ─────────────────────────────────────
+function escHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Helper: relative time label ───────────────────────────────────
+function timeAgo(d){
+  const diff = Math.floor((Date.now() - d)/60000);
+  if(diff < 1)   return 'NOW';
+  if(diff < 60)  return diff+'m AGO';
+  if(diff < 1440) return Math.floor(diff/60)+'h AGO';
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+}
+
+// ── Analysis day state ────────────────────────────────────────────
+// (selectedDay unified into selectedDay)
+
+function anlysDateKey(a){
+  if(!a.pub) return null;
+  try{ return new Date(a.pub).toISOString().slice(0,10); }
+  catch{ return null; }
+}
+function getAnalysisDays(){
+  const days = [...new Set(allAnalysis.map(a=>anlysDateKey(a)).filter(Boolean))];
+  return days.sort((a,b)=>b.localeCompare(a));
+}
+function getFilteredAnalysis(){
+  const days = getAnalysisDays();
+  const active = (selectedDay && days.includes(selectedDay))
+                 ? selectedDay : (days[0]||null);
+  return allAnalysis.filter(a => !active || anlysDateKey(a)===active);
+}
+
+async function fetchAnalysis(){
+  try{
+    const r = await fetch(`${SERVER}/analysis.json`,{cache:'no-store'});
+    if(!r.ok) return;
+    const data = await r.json();
+    if(!Array.isArray(data)) return;
+    allAnalysis = data;
+    // Pin to latest day on first load
+    const days = getAnalysisDays();
+    buildDayPicker(allEvents);  // refresh global picker with analysis days added
+    buildAnalysisPanel();
+    // Render analysis map markers now that data is loaded
+    if(anlysMarkersVisible) renderMap(getFiltered());
+    const aBtn = document.getElementById('anlys-map-toggle');
+    if(aBtn) aBtn.classList.toggle('active', anlysMarkersVisible);
+  }catch(e){
+    console.warn('Analysis fetch:', e.message);
+  }
+}
+
+function buildAnalysisDayPicker(){ /* unified into global day picker */ }
+
+function selectAnalysisDay(d){ selectDay(d); }
+
+function anlysCardClick(el){
+  const id = el.getAttribute('data-anlys-id');
+  const a = window.__anlysMap && window.__anlysMap[id];
+  if(!a) return;
+  // Pick the best available URL — prefer resolved url, fall back to raw google url
+  const adapted = {
+    id:         a.id,
+    title:      a.title,
+    url:        a.url || a.raw_url || '',
+    source:     a.source,
+    pub:        a.pub,
+    type:       a.type,
+    label:      a.type,
+    desc:       a.desc,
+    summary:    a.desc || '',
+    severity:   'medium',
+    location:   '',
+    country:    '',
+    categories: [],
+    military:   false,
+    _anlys:     true,
+  };
+  openPopup([adapted], 0, null);
+}
+
+function scrollAnalysis(dir){
+  const list = document.getElementById('analysis-list');
+  if(list) list.scrollBy({left: dir * 280, behavior:'smooth'});
+}
+
+function buildAnalysisCards(){
+  const el = document.getElementById('analysis-list');
+  if(!el) return;
+  const items = getFilteredAnalysis();
+  if(!items.length){
+    el.innerHTML = '<div class="anlys-empty">No analysis for this date</div>';
+    return;
+  }
+  // Store cards in a lookup so click handler can get raw URL without HTML-encoding issues
+  window.__anlysMap = {};
+  items.forEach(a => { window.__anlysMap[a.id] = a; });
+
+  el.innerHTML = items.map(a => {
+    const ago = a.pub ? timeAgo(new Date(a.pub)) : '';
+    const srcCol = ANLYS_COLORS[a.source] || ANLYS_COLORS_DEFAULT;
+    const srcBg  = srcCol + '22';
+    return `<div class="anlys-card" data-anlys-id="${escHtml(a.id)}" onclick="anlysCardClick(this)">
+      <div class="anlys-card-meta">
+        <span class="anlys-source-tag" style="background:${srcBg};color:${srcCol};border-color:${srcCol}40">${escHtml(a.source||'')}</span>
+        ${a.type ? `<span class="anlys-type-tag">${escHtml(a.type)}</span>` : ''}
+        <span class="anlys-time">${ago}</span>
+      </div>
+      <div class="anlys-card-title">${escHtml(a.title||'')}</div>
+      ${a.desc ? `<div class="anlys-card-desc">${escHtml(a.desc)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function buildAnalysisPanel(){
+  const days = getAnalysisDays();
+  const count = allAnalysis.length;
+  document.getElementById('anlys-count').textContent = count || '─';
+  if(!count){
+    const el = document.getElementById('analysis-list');
+    if(el) el.innerHTML = '<div class="anlys-empty">No analysis items loaded — check server</div>';
+    return;
+  }
+  buildAnalysisDayPicker();
+  buildAnalysisCards();
 }
 
 function buildISWPanel(){
@@ -855,7 +1113,7 @@ function buildISWPanel(){
   const days  = getISWAvailableDays();
   const total = allISW.length;
   document.getElementById('isw-count').textContent =
-    (days.length > 1 && visible.length !== total)
+    (visible.length !== total)
       ? `${visible.length}/${total}`
       : (total || '─');
 
@@ -911,75 +1169,75 @@ function iswCardClick(id){
 // Interior NATO symbols (36x36 viewBox, centered at 18,18)
 const NATO_SYMBOLS = {
   // Hostile air — aircraft silhouette in hostile diamond
-  airstrike: (c)=>`<g fill="${c}" transform="translate(18,18)">
+  airstrike: (c)=>`<g fill="${c}" transform="translate(40,40)">
     <polygon points="0,-7 2,-1 8,3 2.5,2 1,5 0,4 -1,5 -2.5,2 -8,3 -2,-1"/>
     <rect x="-1" y="3.5" width="2" height="3" rx=".8"/>
   </g>`,
   // Missile track — arrow with warhead
-  missile: (c)=>`<g fill="${c}" transform="translate(18,18)">
+  missile: (c)=>`<g fill="${c}" transform="translate(40,40)">
     <polygon points="0,-8 2,-3 1,-3 1,7 -1,7 -1,-3 -2,-3"/>
     <polygon points="-3,5 3,5 1,8 -1,8"/>
   </g>`,
   // UAV — loitering munition symbol
-  drone: (c)=>`<g stroke="${c}" fill="none" stroke-width="1.3" transform="translate(18,18)">
+  drone: (c)=>`<g stroke="${c}" fill="none" stroke-width="1.3" transform="translate(40,40)">
     <ellipse cx="0" cy="0" rx="3" ry="2" fill="${c}" stroke="none"/>
     <line x1="-3" y1="0" x2="-9" y2="-2"/><line x1="-9" y1="-2" x2="-9" y2="2"/><line x1="-9" y1="2" x2="-3" y2="0"/>
     <line x1="3" y1="0" x2="9" y2="-2"/><line x1="9" y1="-2" x2="9" y2="2"/><line x1="9" y1="2" x2="3" y2="0"/>
     <line x1="0" y1="2" x2="0" y2="6"/><line x1="-2" y1="6" x2="2" y2="6"/>
   </g>`,
   // CBRN — NATO nuclear/bio/chem hazard flash
-  nuclear: (c)=>`<g fill="${c}" transform="translate(18,18)">
+  nuclear: (c)=>`<g fill="${c}" transform="translate(40,40)">
     <circle cx="0" cy="0" r="2.5"/>
     <path d="M0,-9 L2,-4 A4,4 0 0,1 -2,-4 Z"/>
     <path d="M7.8,4.5 L3.2,1 A4,4 0 0,1 4.5,-3 Z"/>
     <path d="M-7.8,4.5 L-3.2,1 A4,4 0 0,1 -4.5,-3 Z"/>
   </g>`,
   // Ground unit — NATO infantry rectangle (MIL-STD-2525 hostile ground)
-  ground: (c)=>`<g fill="${c}" transform="translate(18,18)">
+  ground: (c)=>`<g fill="${c}" transform="translate(40,40)">
     <rect x="-9" y="-3" width="18" height="6" rx=".5" opacity=".15" fill="${c}"/>
     <rect x="-9" y="-3" width="18" height="6" rx=".5" fill="none" stroke="${c}" stroke-width="1"/>
     <line x1="-7" y1="-1" x2="7" y2="1" stroke="${c}" stroke-width="1.5"/>
     <line x1="-7" y1="1" x2="7" y2="-1" stroke="${c}" stroke-width="1.5"/>
   </g>`,
   // Surface — NATO surface unit ship
-  naval: (c)=>`<g fill="${c}" transform="translate(18,18)">
+  naval: (c)=>`<g fill="${c}" transform="translate(40,40)">
     <path d="M0,-9 L7,-1 L8,5 L0,8 L-8,5 L-7,-1 Z" fill="${c}" opacity=".2"/>
     <path d="M0,-9 L7,-1 L8,5 L0,8 L-8,5 L-7,-1 Z" fill="none" stroke="${c}" stroke-width="1.2"/>
     <line x1="0" y1="-9" x2="0" y2="8" stroke="${c}" stroke-width=".8" opacity=".5"/>
     <rect x="-3" y="-3" width="6" height="5" fill="${c}" opacity=".4"/>
   </g>`,
   // Explosion / BDA — starburst
-  violence: (c)=>`<g fill="${c}" transform="translate(18,18)">
+  violence: (c)=>`<g fill="${c}" transform="translate(40,40)">
     <polygon points="0,-9 1.8,-2.5 6,-6 2.8,-0.5 8.5,1 2.8,2.5 6,7 1.2,3.5 0,10 -1.2,3.5 -6,7 -2.8,2.5 -8.5,1 -2.8,-0.5 -6,-6 -1.8,-2.5"/>
   </g>`,
   // Engagement area — crossed lines (general hostile action)
-  conflict: (c)=>`<g stroke="${c}" stroke-width="2.2" stroke-linecap="round" fill="none" transform="translate(18,18)">
+  conflict: (c)=>`<g stroke="${c}" stroke-width="2.2" stroke-linecap="round" fill="none" transform="translate(40,40)">
     <line x1="-7" y1="-7" x2="7" y2="7"/>
     <line x1="7" y1="-7" x2="-7" y2="7"/>
     <line x1="-10" y1="-6" x2="-6" y2="-10"/>
     <line x1="10" y1="-6" x2="6" y2="-10"/>
   </g>`,
   // C2 node — command post symbol
-  strategic: (c)=>`<g stroke="${c}" fill="none" transform="translate(18,18)">
+  strategic: (c)=>`<g stroke="${c}" fill="none" transform="translate(40,40)">
     <rect x="-8" y="-6" width="16" height="12" rx=".5" stroke-width="1.2"/>
     <line x1="-6" y1="-3" x2="6" y2="-3" stroke-width="1.3" stroke="${c}"/>
     <line x1="-6" y1="0" x2="3" y2="0" stroke-width="1.3" stroke="${c}"/>
     <line x1="-6" y1="3" x2="4" y2="3" stroke-width="1.3" stroke="${c}"/>
   </g>`,
   // Detention — padlock
-  arrest: (c)=>`<g fill="${c}" transform="translate(18,18)">
+  arrest: (c)=>`<g fill="${c}" transform="translate(40,40)">
     <rect x="-5.5" y="-1" width="11" height="9" rx="1.2"/>
     <path d="M-3.5,-1 L-3.5,-4.5 A3.5,3.5 0 0,1 3.5,-4.5 L3.5,-1" stroke="${c}" stroke-width="2.2" fill="none"/>
     <rect x="-1.5" y="2" width="3" height="4" rx="1" fill="#00000055"/>
   </g>`,
   // Civil disturbance
-  protest: (c)=>`<g fill="${c}" transform="translate(18,18)">
+  protest: (c)=>`<g fill="${c}" transform="translate(40,40)">
     <circle cx="0" cy="-5" r="3"/>
     <path d="M-4,0 Q0,-3 4,0 L3,7 L-3,7 Z"/>
     <line x1="-5" y1="4" x2="-8" y2="9" stroke="${c}" stroke-width="1.5"/>
     <line x1="5" y1="4" x2="8" y2="9" stroke="${c}" stroke-width="1.5"/>
   </g>`,
-  riot: (c)=>`<g fill="${c}" transform="translate(18,18)">
+  riot: (c)=>`<g fill="${c}" transform="translate(40,40)">
     <circle cx="0" cy="-5" r="3"/>
     <path d="M-4,0 Q0,-3 4,0 L3,7 L-3,7 Z"/>
     <line x1="-5" y1="4" x2="-8" y2="9" stroke="${c}" stroke-width="1.5"/>
@@ -987,18 +1245,70 @@ const NATO_SYMBOLS = {
     <line x1="-10" y1="-10" x2="10" y2="10" stroke="${c}" stroke-width="1.5" opacity=".7"/>
   </g>`,
   // Supply/logistics — NATO CSS box
-  logistics: (c)=>`<g stroke="${c}" fill="none" transform="translate(18,18)">
+  logistics: (c)=>`<g stroke="${c}" fill="none" transform="translate(40,40)">
     <rect x="-8" y="-5" width="16" height="10" rx=".5" stroke-width="1.2"/>
     <path d="M-4,-5 L-4,5" stroke-width="1"/>
     <path d="M4,-5 L4,5" stroke-width="1"/>
     <path d="M-8,0 L8,0" stroke-width="1"/>
   </g>`,
 };
-NATO_SYMBOLS.default = (c)=>`<g stroke="${c}" stroke-width="1.8" fill="none" transform="translate(18,18)">
+NATO_SYMBOLS.default = (c)=>`<g stroke="${c}" stroke-width="1.8" fill="none" transform="translate(40,40)">
   <circle cx="0" cy="0" r="5"/>
   <line x1="0" y1="-9" x2="0" y2="-6"/><line x1="0" y1="6" x2="0" y2="9"/>
   <line x1="-9" y1="0" x2="-6" y2="0"/><line x1="6" y1="0" x2="9" y2="0"/>
 </g>`;
+
+
+function makeAnalysisIcon(group){
+  // All analysis squares share the same violet border/fill.
+  // The source abbreviation letter inside uses the per-source colour.
+  const BORDER = '#a78bfa';  // violet — consistent shape identity
+  const rep   = group[0];
+  const srcCol = ANLYS_COLORS[rep.source] || ANLYS_COLORS_DEFAULT;
+  const count = group.length;
+  const hw    = 9;
+  // 70×70 canvas so the 6px pulse expansion (hw+exp=15 from centre 35) fits cleanly
+  const sz    = 70;
+  const cx    = sz / 2; const cy = sz / 2;
+  const exp   = 6;
+
+  const pulse = `
+    <rect x="${cx-hw}" y="${cy-hw}" width="${hw*2}" height="${hw*2}"
+      fill="none" stroke="${BORDER}" stroke-width="1" opacity=".45">
+      <animate attributeName="width"  values="${hw*2};${hw*2+exp*2};${hw*2}" dur="3.5s" repeatCount="indefinite"/>
+      <animate attributeName="height" values="${hw*2};${hw*2+exp*2};${hw*2}" dur="3.5s" repeatCount="indefinite"/>
+      <animate attributeName="x"      values="${cx-hw};${cx-hw-exp};${cx-hw}" dur="3.5s" repeatCount="indefinite"/>
+      <animate attributeName="y"      values="${cy-hw};${cy-hw-exp};${cy-hw}" dur="3.5s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values=".45;0;.45" dur="3.5s" repeatCount="indefinite"/>
+    </rect>`;
+
+  // Count badge in source colour
+  const badge = count > 1 ? `
+    <circle cx="${cx+hw}" cy="${cy-hw}" r="6" fill="${srcCol}" stroke="#080b0f" stroke-width="1.5"/>
+    <text x="${cx+hw}" y="${cy-hw}" text-anchor="middle" dominant-baseline="central"
+      font-family="'JetBrains Mono',monospace" font-size="7" fill="#080b0f" font-weight="bold">${count > 9 ? '9+' : count}</text>` : '';
+
+  // Coloured source abbreviation inside the square
+  const initials = {'Chatham House':'CH','Carnegie Endowment':'CE','Crisis Group':'CG'};
+  const letter = initials[rep.source] || rep.source.slice(0,2).toUpperCase();
+
+  return L.divIcon({
+    html:`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 80 80">
+      ${pulse}
+      <rect x="${cx-hw}" y="${cy-hw}" width="${hw*2}" height="${hw*2}"
+        fill="#080b0f" opacity=".9"/>
+      <rect x="${cx-hw}" y="${cy-hw}" width="${hw*2}" height="${hw*2}"
+        fill="${BORDER}" opacity=".10"/>
+      <rect x="${cx-hw}" y="${cy-hw}" width="${hw*2}" height="${hw*2}"
+        fill="none" stroke="${BORDER}" stroke-width="1.6"/>
+      <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central"
+        font-family="'JetBrains Mono',monospace" font-size="7" fill="${srcCol}" font-weight="bold"
+        opacity=".95">${letter}</text>
+      ${badge}
+    </svg>`,
+    className:'', iconSize:[sz,sz], iconAnchor:[cx,cy]
+  });
+}
 
 function makeISWIcon(group, scale){
   scale = scale || 1.0;
@@ -1010,7 +1320,10 @@ function makeISWIcon(group, scale){
 
   // NATO hostile frame = rotated square (diamond), size scales with severity
   const hw = sev==='critical'?13:sev==='high'?11:sev==='medium'?10:9;
-  const sz = Math.round(42 * scale);
+  // Fixed 80×80 canvas so pulse rings (hw+exp2 up to 35) never get clipped.
+  const SZ = 80;
+  const C  = 40;  // centre
+  const sz = Math.round(SZ * scale);
   const cx = Math.round(sz/2); const cy = Math.round(sz/2);
 
   // Dramatic pulsing — double rings, all severities
@@ -1290,7 +1603,16 @@ function toggleOverlay(key){
 let milLayer   = null;
 let milVisible = false;
 
-let iswMarkersVisible = true;
+let iswMarkersVisible   = true;
+let anlysMarkersVisible = true;
+
+function toggleAnalysisMarkers(){
+  anlysMarkersVisible = !anlysMarkersVisible;
+  const btn = document.getElementById('anlys-map-toggle');
+  if(btn) btn.classList.toggle('active', anlysMarkersVisible);
+  if(mapEngine === 'mapbox') renderMapbox(getFiltered());
+  else renderMap(getFiltered());
+}
 
 function toggleISWMarkers(){
   iswMarkersVisible = !iswMarkersVisible;
@@ -1344,6 +1666,10 @@ async function fetchData(){
     const data = await r.json();
     if(!Array.isArray(data)) throw new Error('Bad data');
     allEvents = data;
+    // Always pin selectedDay to latest available day on each load
+    // (prevents blank panel when only one day of data exists)
+    const freshDays = getAvailableDays(allEvents);
+    if(!selectedDay || !freshDays.includes(selectedDay)) selectedDay = freshDays[0] || null;
     // Init selections on first load only
     // Always seed newly-seen sources/types (handles IRNA appearing after first load).
     // We only ever add — sources the user deselected stay deselected.
@@ -1359,19 +1685,27 @@ async function fetchData(){
     render();
     setLastRefresh();
     showToast(`${getFiltered().length} EVENTS LOADED`,2500);
+    // Fetch analysis + ISW in parallel (non-blocking — failures are silent)
+    fetchISW();
+    fetchAnalysis();
   }catch(e){
-    list.innerHTML = `
-      <div class="news-server-hint">
-        <div class="hint-label" style="color:#f85149">Connection failed</div>
-        <div class="hint-cmd">python3 rss-server.py</div>
-        <div class="hint-arrow">↓</div>
-        <div class="hint-label">then click ↻ Refresh</div>
-      </div>`;
-    showToast(`ERROR: ${e.message} — Is rss-server.py running?`,5000);
+    // Only show the failure hint if we have no data yet — otherwise keep the
+    // existing news list visible and just show a toast warning.
+    if(!allEvents.length){
+      list.innerHTML = `
+        <div class="news-server-hint">
+          <div class="hint-label" style="color:#f85149">Connection failed</div>
+          <div class="hint-cmd">python3 rss-server.py</div>
+          <div class="hint-arrow">↓</div>
+          <div class="hint-label">then click ↻ Refresh</div>
+        </div>`;
+    } else {
+      // Restore the existing data view — a transient failure shouldn't blank the panel
+      render();
+    }
+    showToast(`⚠ Refresh failed — showing cached data`,3500);
   }
   btn.textContent='↻ Refresh'; btn.classList.remove('loading');
-  // Fetch ISW independently — failure doesn't block RSS display
-  fetchISW();
 }
 
 // ── Dropdowns ────────────────────────────────────────────────────────
@@ -1568,12 +1902,22 @@ function buildMilDD(){
     </div>`;
   }).join('');
 
+  const anlysOn = anlysMarkersVisible;
   menu.innerHTML = `
     <div style="font-size:8px;color:var(--mil);padding:4px 10px 2px;letter-spacing:.12em">◆ INTEL FEEDS</div>
     <div class="dd-item${iswOn?' on':''}" onclick="toggleISWMarkers();buildMilDD()">
       <span class="dd-check">${iswOn?'✓':''}</span>
       <span style="color:var(--mil)">ISW</span>
       <span style="margin-left:auto;font-size:8px;color:var(--text-dim)">★★★★★</span>
+    </div>
+    <div class="dd-item${anlysOn?' on':''}" onclick="toggleAnalysisMarkers();buildMilDD()">
+      <span class="dd-check">${anlysOn?'✓':''}</span>
+      <span style="color:#a78bfa">Think Tank</span>
+      <span style="margin-left:auto;font-size:8px;display:flex;gap:4px">
+        <span style="color:${ANLYS_COLORS['Chatham House']}">CH</span>
+        <span style="color:${ANLYS_COLORS['Carnegie Endowment']}">CE</span>
+        <span style="color:${ANLYS_COLORS['Crisis Group']}">CG</span>
+      </span>
     </div>
     ${milFeedRows}
     <div class="dd-divider"></div>
@@ -1618,12 +1962,17 @@ function dayLabel(dateKey){
 }
 
 function buildDayPicker(events){
-  const days = getAvailableDays(events);
+  // Union days from news + ISW + analysis so one picker covers all panels
+  const newsDays  = getAvailableDays(allEvents);
+  const iswDays   = getISWAvailableDays();
+  const anlDays   = [...new Set(allAnalysis.map(a=>anlysDateKey(a)).filter(Boolean))];
+  const allDays   = [...new Set([...newsDays, ...iswDays, ...anlDays])]
+                      .sort((a,b)=>b.localeCompare(a))
+                      .slice(0, 7);  // cap at 7 days including today
   const picker = document.getElementById('day-picker');
-  if(days.length <= 1){ picker.innerHTML=''; return; }
-  // Auto-select latest if selectedDay not present in current data
-  if(!selectedDay || !days.includes(selectedDay)) selectedDay = days[0];
-  picker.innerHTML = days.map(d=>
+  if(allDays.length <= 1){ picker.innerHTML=''; return; }
+  if(!selectedDay || !allDays.includes(selectedDay)) selectedDay = allDays[0];
+  picker.innerHTML = allDays.map(d=>
     `<button class="day-btn${d===selectedDay?' active':''}" onclick="selectDay('${d}')">${dayLabel(d)}</button>`
   ).join('');
 }
@@ -1631,7 +1980,9 @@ function buildDayPicker(events){
 function selectDay(d){
   selectedDay = d;
   buildDayPicker(allEvents);
-  render();
+  render();           // news + map
+  buildISWPanel();    // ISW cards
+  buildAnalysisPanel(); // analysis cards
 }
 
 // ── Filter ───────────────────────────────────────────────────────
@@ -1769,12 +2120,31 @@ function makeIcon(group, scale){
 function renderMap(evs){
   markerGroup.clearLayers();
 
-  // Grid key → lat/lng for RSS markers already placed
-  // When an ISW group falls in the same cell, nudge its position
-  const GRID = 0.15;  // ~15km cell
+  const GRID = 0.15;  // ~15km grid cell
   const gridKey = (lat,lng) => `${(lat/GRID).toFixed(0)},${(lng/GRID).toFixed(0)}`;
 
-  // ── RSS circles ───────────────────────────────────────────────
+  // Slot system: each grid cell can hold multiple markers side-by-side.
+  // Slots are arranged in a horizontal row: 0=centre, 1=right, 2=left, 3=far-right…
+  // Each step is ~0.12° lng (≈10km at ME latitudes) — enough to clear a 38px icon.
+  const STEP = 0.13;
+  const slotOffset = slot => {
+    // 0→[0,0], 1→[0,+STEP], 2→[0,-STEP], 3→[0,+2*STEP], 4→[0,-2*STEP]
+    if(slot === 0) return [0, 0];
+    const side  = slot % 2 === 1 ? 1 : -1;
+    const dist  = Math.ceil(slot / 2);
+    return [0, side * dist * STEP];
+  };
+  // slotMap: gridKey → next available slot index
+  const slotMap = {};
+  const claimSlot = (lat, lng) => {
+    const k = gridKey(lat, lng);
+    const slot = slotMap[k] || 0;
+    slotMap[k] = slot + 1;
+    const [dlat, dlng] = slotOffset(slot);
+    return [lat + dlat, lng + dlng];
+  };
+
+  // ── RSS circles (claim slots first — highest priority) ────────
   const groups = {};
   evs.forEach(e=>{
     if(!e.lat||!e.lng) return;
@@ -1783,26 +2153,21 @@ function renderMap(evs){
     groups[k].push(e);
   });
 
-  const rssOccupied = new Set(Object.keys(groups)); // cells that have RSS markers
-
   Object.values(groups).forEach(grp=>{
     const rep=[...grp].sort((a,b)=>SEV_ORD.indexOf(a.severity)-SEV_ORD.indexOf(b.severity))[0];
-    L.marker([rep.lat,rep.lng],{icon:makeIcon(grp), pane:'markersPane'})
+    const [plat, plng] = claimSlot(rep.lat, rep.lng);
+    L.marker([plat,plng],{icon:makeIcon(grp), pane:'markersPane'})
      .on('click',ev=>{
        ev.originalEvent.stopPropagation();
        const sorted=[...grp].sort((a,b)=>SEV_ORD.indexOf(a.severity)-SEV_ORD.indexOf(b.severity));
-       const px = map.latLngToContainerPoint([rep.lat, rep.lng]);
+       const px = map.latLngToContainerPoint([plat, plng]);
        openPopup(sorted, 0, {x: px.x, y: px.y});
      })
      .addTo(markerGroup);
   });
 
-  // ── ISW diamonds — only when toggled on ──────────────────────
+  // ── ISW diamonds ──────────────────────────────────────────────
   if(iswMarkersVisible){
-  // shift ~0.06° NE (about 6-7km) — enough to clear the marker visually
-  const ISW_LAT_OFF =  0.07;
-  const ISW_LNG_OFF =  0.10;
-
   const iswGroups = {};
   getISWFiltered().forEach(e=>{
     if(!e.lat||!e.lng) return;
@@ -1813,24 +2178,50 @@ function renderMap(evs){
 
   Object.values(iswGroups).forEach(grp=>{
     const rep=[...grp].sort((a,b)=>SEV_ORD.indexOf(a.severity)-SEV_ORD.indexOf(b.severity))[0];
-
-    // If this cell already has an RSS circle, nudge the diamond NE
-    const cell  = gridKey(rep.lat, rep.lng);
-    const clash = rssOccupied.has(cell);
-    const plat  = rep.lat + (clash ? ISW_LAT_OFF : 0);
-    const plng  = rep.lng + (clash ? ISW_LNG_OFF : 0);
-
+    const [plat, plng] = claimSlot(rep.lat, rep.lng);
     L.marker([plat, plng],{icon:makeISWIcon(grp), pane:'markersPane'})
      .on('click',ev=>{
        ev.originalEvent.stopPropagation();
        const sorted=[...grp].sort((a,b)=>SEV_ORD.indexOf(a.severity)-SEV_ORD.indexOf(b.severity));
-       // Use original (non-nudged) coords for popup position — matches the data
        const px = map.latLngToContainerPoint([plat, plng]);
        openPopup(sorted, 0, {x: px.x, y: px.y});
      })
      .addTo(markerGroup);
   });
   } // end iswMarkersVisible
+
+  // ── Analysis squares ──────────────────────────────────────────
+  if(anlysMarkersVisible){
+  const anlysGroups = {};
+  allAnalysis.filter(a => a.lat && a.lng).forEach(a => {
+    const k = gridKey(a.lat, a.lng);
+    if(!anlysGroups[k]) anlysGroups[k] = [];
+    anlysGroups[k].push(a);
+  });
+
+  Object.values(anlysGroups).forEach(grp => {
+    const rep = grp[0];
+    const [plat, plng] = claimSlot(rep.lat, rep.lng);
+
+    L.marker([plat, plng], {icon: makeAnalysisIcon(grp), pane: 'markersPane'})
+     .on('click', ev => {
+       ev.originalEvent.stopPropagation();
+       const adapted = grp.map(a => ({
+         ...a,
+         summary:    a.desc || '',
+         severity:   'medium',
+         categories: [],
+         military:   false,
+         label:      a.type,
+         _anlys:     true,
+         url: a.url || a.raw_url || '',
+       }));
+       const px = map.latLngToContainerPoint([plat, plng]);
+       openPopup(adapted, 0, {x: px.x, y: px.y});
+     })
+     .addTo(markerGroup);
+  });
+  } // end anlysMarkersVisible
 }
 
 // ── Mapbox Engine ────────────────────────────────────────────────
@@ -2111,18 +2502,23 @@ function renderPopup(){
   const col=TYPE_COLORS[e.type]||'#888';
   const cred=CRED[e.source]||3;
 
-  // Sev bar — ISW gets cyan regardless of sev class
+  // Sev bar — ISW=cyan, analysis=violet, others=severity colour
   const sevEl=document.getElementById('popup-sev');
-  if(e.source==='ISW'){
+  if(e._anlys){
+    sevEl.className=''; sevEl.style.height='3px'; sevEl.style.background='#a78bfa';
+  } else if(e.source==='ISW'){
     sevEl.className=''; sevEl.style.height='3px'; sevEl.style.background='#0bc8c8';
   } else {
     sevEl.className=`sev-${e.severity}`; sevEl.style.height='3px'; sevEl.style.background='';
   }
 
-  // Source
+  // Source tag
   const srcEl=document.getElementById('popup-source-tag');
   srcEl.textContent=e.source;
-  if(e.source==='ISW'){
+  if(e._anlys){
+    srcEl.className='';
+    srcEl.style.cssText=`font-size:8px;letter-spacing:.06em;text-transform:uppercase;padding:2px 5px;border:1px solid #a78bfa;color:#a78bfa`;
+  } else if(e.source==='ISW'){
     srcEl.className='';
     srcEl.style.cssText=`font-size:8px;letter-spacing:.06em;text-transform:uppercase;padding:2px 5px;border:1px solid #0bc8c8;color:#0bc8c8`;
   } else if(e.military || MIL_SOURCES.has(e.source)){
@@ -2142,12 +2538,23 @@ function renderPopup(){
   document.getElementById('popup-time-tag').textContent=fmtTime(e.pub);
   document.getElementById('popup-title').textContent=e.title;
   document.getElementById('popup-summary').textContent=e.summary||'';
-  document.getElementById('popup-loc-txt').textContent=`${e.location||'Unknown'} · ${e.country||''}`;
+  const locRow = document.getElementById('popup-loc-txt');
+  if(e._anlys){
+    locRow.parentElement.style.display='none';
+  } else {
+    locRow.parentElement.style.display='';
+    locRow.textContent=`${e.location||'Unknown'} · ${e.country||''}`;
+  }
 
   const cats=(e.categories||[]).slice(0,5);
   document.getElementById('popup-cats').innerHTML=cats.map(c=>`<span class="pcap">${c}</span>`).join('');
 
-  document.getElementById('popup-link').href=e.url||'#';
+  const linkEl = document.getElementById('popup-link');
+  const eUrl = (e.url || '').trim();
+  linkEl.href = eUrl || '#';
+  linkEl.style.opacity = eUrl ? '1' : '0.3';
+  linkEl.style.pointerEvents = eUrl ? '' : 'none';
+  linkEl.onclick = null;
 
   // Nav
   const nav=document.getElementById('popup-nav');
@@ -2179,6 +2586,7 @@ function closePopup(){
   document.querySelectorAll('.art-card').forEach(c=>c.classList.remove('selected'));
   popupGroup=[]; popupIdx=0;
 }
+
 
 // ── Toast ────────────────────────────────────────────────────────
 let _tt=null;
