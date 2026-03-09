@@ -799,6 +799,7 @@ const ANLYS_COLORS = {
   'Chatham House':      '#2dd4bf',  // teal
   'Carnegie Endowment': '#818cf8',  // indigo
   'Crisis Group':       '#fb923c',  // orange
+  'IISS':               '#f472b6',  // rose/pink
 };
 const ANLYS_COLORS_DEFAULT = '#a78bfa';  // violet fallback
 
@@ -826,7 +827,7 @@ const CRED = {
   // Military intel sources
   'ISW': 5,
   // Think-tank analysis sources
-  'Chatham House':5, 'Carnegie Endowment':5, 'Crisis Group':5,
+  'Chatham House':5, 'Carnegie Endowment':5, 'Crisis Group':5, 'IISS':5,
   'War on the Rocks':4, 'Foreign Policy':4,
 };
 // Sources that are military/official intel — get steel-blue badge, appear in Military dropdown
@@ -1267,9 +1268,9 @@ function makeAnalysisIcon(group){
   const srcCol = ANLYS_COLORS[rep.source] || ANLYS_COLORS_DEFAULT;
   const count = group.length;
   const hw    = 9;
-  // 70×70 canvas so the 6px pulse expansion (hw+exp=15 from centre 35) fits cleanly
-  const sz    = 70;
-  const cx    = sz / 2; const cy = sz / 2;
+  // 80×80 canvas, centre at 40,40 — pulse expands up to hw+exp=15px from centre, fits cleanly
+  const sz    = 80;
+  const cx    = 40; const cy = 40;
   const exp   = 6;
 
   const pulse = `
@@ -1289,7 +1290,7 @@ function makeAnalysisIcon(group){
       font-family="'JetBrains Mono',monospace" font-size="7" fill="#080b0f" font-weight="bold">${count > 9 ? '9+' : count}</text>` : '';
 
   // Coloured source abbreviation inside the square
-  const initials = {'Chatham House':'CH','Carnegie Endowment':'CE','Crisis Group':'CG'};
+  const initials = {'Chatham House':'CH','Carnegie Endowment':'CE','Crisis Group':'CG','IISS':'II'};
   const letter = initials[rep.source] || rep.source.slice(0,2).toUpperCase();
 
   return L.divIcon({
@@ -1917,6 +1918,7 @@ function buildMilDD(){
         <span style="color:${ANLYS_COLORS['Chatham House']}">CH</span>
         <span style="color:${ANLYS_COLORS['Carnegie Endowment']}">CE</span>
         <span style="color:${ANLYS_COLORS['Crisis Group']}">CG</span>
+        <span style="color:${ANLYS_COLORS['IISS']}">II</span>
       </span>
     </div>
     ${milFeedRows}
@@ -2085,32 +2087,34 @@ function makeIcon(group, scale){
   const sw1    = sev==='critical'?2.2:sev==='high'?1.8:1.2;
   const sw2    = sev==='critical'?1.2:0.8;
   const delay2 = sev==='critical'?'0.6s':sev==='high'?'0.95s':sev==='medium'?'1.4s':'2.0s';
+  // 80×80 canvas so pulse rings never clip (rMax2 can reach 40+26=~40px from centre)
+  const C = 40;  // centre of 80×80 canvas
   const pulse  = `
-    <circle cx="20" cy="20" r="${r}" fill="none" stroke="${col}" stroke-width="${sw1}" opacity="${o1}">
+    <circle cx="${C}" cy="${C}" r="${r}" fill="none" stroke="${col}" stroke-width="${sw1}" opacity="${o1}">
       <animate attributeName="r"       values="${r};${rMax1};${r}" dur="${dur}" repeatCount="indefinite"/>
       <animate attributeName="opacity" values="${o1};0;${o1}"      dur="${dur}" repeatCount="indefinite"/>
     </circle>
-    <circle cx="20" cy="20" r="${r}" fill="none" stroke="${col}" stroke-width="${sw2}" opacity="${o2}">
+    <circle cx="${C}" cy="${C}" r="${r}" fill="none" stroke="${col}" stroke-width="${sw2}" opacity="${o2}">
       <animate attributeName="r"       values="${r};${rMax2};${r}" dur="${dur}" begin="${delay2}" repeatCount="indefinite"/>
       <animate attributeName="opacity" values="${o2};0;${o2}"      dur="${dur}" begin="${delay2}" repeatCount="indefinite"/>
     </circle>`;
 
   const glow = (sev==='critical'||sev==='high')?
-    `<circle cx="20" cy="20" r="${r+5}" fill="${col}" opacity="0.12"/>`:'';
+    `<circle cx="${C}" cy="${C}" r="${r+5}" fill="${col}" opacity="0.12"/>`:'';
 
   const badge = count>1?`
-    <circle cx="${20+r-2}" cy="${20-r+2}" r="8" fill="${col}" stroke="var(--bg2)" stroke-width="1.5" opacity="1"/>
-    <text x="${20+r-2}" y="${20-r+2}" text-anchor="middle" dominant-baseline="central"
+    <circle cx="${C+r-2}" cy="${C-r+2}" r="8" fill="${col}" stroke="var(--bg2)" stroke-width="1.5" opacity="1"/>
+    <text x="${C+r-2}" y="${C-r+2}" text-anchor="middle" dominant-baseline="central"
       font-family="'JetBrains Mono',monospace" font-size="9" fill="#000" font-weight="bold">${count>9?'9+':count}</text>
     `:'';
 
-  const sz = Math.round(40 * scale);
+  const sz = Math.round(80 * scale);
   const mid = Math.round(sz/2);
   return L.divIcon({
-    html:`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 40 40">
+    html:`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 80 80">
       ${pulse}${glow}
-      <circle cx="20" cy="20" r="${r}" fill="${col}" opacity=".9"/>
-      <circle cx="20" cy="20" r="${Math.max(2,r-4)}" fill="#000" opacity=".35"/>
+      <circle cx="${C}" cy="${C}" r="${r}" fill="${col}" opacity=".9"/>
+      <circle cx="${C}" cy="${C}" r="${Math.max(2,r-4)}" fill="#000" opacity=".35"/>
       ${badge}
     </svg>`,
     className:'',iconSize:[sz,sz],iconAnchor:[mid,mid]
